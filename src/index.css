@@ -1,0 +1,387 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light Mode - Tech Store Theme */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    
+    --primary: 199 89% 48%; /* Bright tech blue */
+    --primary-foreground: 210 40% 98%;
+    
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 199 89% 48%;
+    
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    /* Dark Mode - Gaming Theme */
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    
+    --primary: 252 78% 60%; /* Gaming purple */
+    --primary-foreground: 222.2 47.4% 11.2%;
+    
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 252 78% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  #root {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+}
+
+@layer components {
+  /* Custom PC Store Components */
+  .product-card {
+    @apply relative overflow-hidden rounded-lg border bg-card p-4 transition-all hover:shadow-lg;
+  }
+
+  .product-card:hover .product-actions {
+    @apply translate-y-0 opacity-100;
+  }
+
+  .product-actions {
+    @apply absolute bottom-0 left-0 right-0 flex translate-y-full justify-center gap-2 bg-gradient-to-t from-background to-transparent p-4 opacity-0 transition-all;
+  }
+
+  .price-tag {
+    @apply text-2xl font-bold text-primary;
+  }
+
+  .old-price {
+    @apply text-sm text-muted-foreground line-through;
+  }
+
+  .spec-badge {
+    @apply rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground;
+  }
+
+  .nav-link {
+    @apply relative px-3 py-2 text-sm font-medium transition-colors hover:text-primary;
+  }
+
+  .nav-link.active {
+    @apply text-primary after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-primary;
+  }
+
+  .pc-builder-section {
+    @apply rounded-lg border bg-card p-6;
+  }
+
+  .component-selector {
+    @apply grid gap-4 md:grid-cols-2 lg:grid-cols-3;
+  }
+
+  /* Button Variants */
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-md border bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80;
+  }
+
+  .btn-outline {
+    @apply inline-flex items-center justify-center rounded-md border border-primary px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10;
+  }
+
+  /* Hero Section */
+  .hero-section {
+    @apply relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-background to-muted p-6;
+  }
+
+  .hero-content {
+    @apply relative z-10 max-w-2xl text-center;
+  }
+
+  .hero-title {
+    @apply text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl;
+  }
+
+  .hero-subtitle {
+    @apply mt-4 text-lg text-muted-foreground sm:text-xl;
+  }
+
+  /* Feature Grid */
+  .feature-grid {
+    @apply grid gap-6 md:grid-cols-2 lg:grid-cols-3;
+  }
+
+  .feature-card {
+    @apply flex flex-col rounded-lg border bg-card p-6 transition-all hover:shadow-md;
+  }
+
+  .feature-icon {
+    @apply mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary;
+  }
+
+  /* Stats Section */
+  .stats-container {
+    @apply grid gap-8 md:grid-cols-3;
+  }
+
+  .stat-item {
+    @apply text-center;
+  }
+
+  .stat-number {
+    @apply text-3xl font-bold text-primary;
+  }
+
+  .stat-label {
+    @apply mt-2 text-sm text-muted-foreground;
+  }
+
+  /* Testimonial Card */
+  .testimonial-card {
+    @apply rounded-lg border bg-card p-6;
+  }
+
+  .testimonial-text {
+    @apply italic text-foreground;
+  }
+
+  .testimonial-author {
+    @apply mt-4 text-sm font-medium;
+  }
+
+  /* Form Styles */
+  .form-group {
+    @apply mb-4 flex flex-col gap-2;
+  }
+
+  .form-label {
+    @apply text-sm font-medium;
+  }
+
+  .form-input {
+    @apply rounded-md border border-input bg-background px-3 py-2 text-sm transition-colors placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring;
+  }
+
+  .form-textarea {
+    @apply rounded-md border border-input bg-background px-3 py-2 text-sm transition-colors placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring;
+  }
+
+  /* Badge Styles */
+  .badge {
+    @apply inline-flex items-center rounded-full px-2 py-1 text-xs font-medium;
+  }
+
+  .badge-primary {
+    @apply bg-primary/10 text-primary;
+  }
+
+  .badge-success {
+    @apply bg-green-500/10 text-green-700 dark:text-green-400;
+  }
+
+  .badge-warning {
+    @apply bg-yellow-500/10 text-yellow-700 dark:text-yellow-400;
+  }
+
+  /* Loading State */
+  .loading-spinner {
+    @apply inline-block h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-primary;
+  }
+
+  /* Divider */
+  .divider {
+    @apply my-6 border-t border-border;
+  }
+
+  /* Glassmorphism Effect */
+  .glass {
+    @apply bg-background/70 backdrop-blur-md backdrop-saturate-150 border-white/20 dark:border-white/10 shadow-[0_4px_30px_rgba(0,0,0,0.1)];
+  }
+
+  .navbar-shadow {
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  }
+
+  .section-highlight {
+    @apply rounded-3xl border border-sky-500/20 bg-slate-900/60 backdrop-blur-xl shadow-2xl shadow-sky-500/5 hover:border-sky-500/40 transition-all duration-300;
+  }
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Custom Scrollbar for PC Builder */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-secondary;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-primary/50;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-primary;
+}
+
+.bg-tech {
+  background-image: url('/tech_background.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* ==========================================================================
+   SCREEN ASPECT RATIO COMPATIBILITY SYSTEM
+   ========================================================================== */
+
+/* Dynamic Viewport Height Fallbacks for Tall/Mobile Aspect Ratios */
+@supports (height: 100dvh) {
+  .min-h-dvh {
+    min-height: 100dvh;
+  }
+  .h-dvh {
+    height: 100dvh;
+  }
+  .max-h-dvh {
+    max-height: 100dvh;
+  }
+}
+
+/* Ultrawide & TV Container Scaling (21:9, 32:9 & 4K TV Aspect Ratios) */
+@media (min-width: 1920px) {
+  .container {
+    max-width: 100% !important;
+    padding-left: 3rem !important;
+    padding-right: 3rem !important;
+  }
+  .section-highlight {
+    width: 100%;
+    padding-left: 3.5rem;
+    padding-right: 3.5rem;
+  }
+}
+
+@media (min-aspect-ratio: 21/9) {
+  .container {
+    max-width: 100% !important;
+    padding-left: 4rem !important;
+    padding-right: 4rem !important;
+  }
+  .section-highlight {
+    padding-left: 4rem;
+    padding-right: 4rem;
+  }
+}
+
+/* Portrait & Vertical Aspect Ratios (9:16, 9:19.5, 9:20 Mobile / 3:4 Tablets) */
+@media (max-aspect-ratio: 13/9) {
+  .hero-title {
+    font-size: clamp(2rem, 8vw, 3.5rem);
+    line-height: 1.15;
+  }
+  .section-highlight {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+    border-radius: 1.25rem;
+  }
+}
+
+/* Short Height Landscape Aspect Ratios (Mobile rotated horizontally) */
+@media (max-height: 650px) {
+  .hero-section {
+    min-height: auto;
+    padding-top: 5rem;
+    padding-bottom: 2rem;
+  }
+  .modal-scrollable {
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+}
+
+/* Smooth aspect ratio image preservation */
+.aspect-ratio-box {
+  position: relative;
+  width: 100%;
+}
+.aspect-ratio-box img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

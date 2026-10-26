@@ -1,0 +1,25 @@
+<svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pc-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="50%" stop-color="#8b5cf6" />
+      <stop offset="100%" stop-color="#ec4899" />
+    </linearGradient>
+  </defs>
+  <!-- Outer Case / Chassis -->
+  <rect x="4" y="2" width="16" height="20" rx="3" stroke="url(#pc-grad)" stroke-width="2" stroke-linejoin="round" />
+  <!-- Tempered Glass Side Panel Border -->
+  <line x1="9" y1="2" x2="9" y2="22" stroke="url(#pc-grad)" stroke-width="1.5" />
+  <!-- Front Bezel detail -->
+  <circle cx="6.5" cy="5" r="0.75" fill="url(#pc-grad)" />
+  <circle cx="6.5" cy="7.5" r="0.75" fill="url(#pc-grad)" />
+  <circle cx="6.5" cy="10" r="0.75" fill="url(#pc-grad)" />
+  <!-- Internal components showing through the glass (fans) -->
+  <circle cx="14.5" cy="7.5" r="3" stroke="url(#pc-grad)" stroke-width="1.5" />
+  <circle cx="14.5" cy="7.5" r="0.75" fill="url(#pc-grad)" />
+  
+  <circle cx="14.5" cy="15.5" r="3" stroke="url(#pc-grad)" stroke-width="1.5" />
+  <circle cx="14.5" cy="15.5" r="0.75" fill="url(#pc-grad)" />
+  
+  <line x1="11" y1="11.5" x2="18" y2="11.5" stroke="url(#pc-grad)" stroke-width="1.5" stroke-linecap="round" />
+</svg>
