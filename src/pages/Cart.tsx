@@ -6,7 +6,6 @@ import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, Sparkles, PlusCircle, Ref
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import ProductCard from "../components/ProductCard";
-import type { Product } from "../data/products";
 
 const Cart = () => {
   const { items, removeItem, updateQuantity, totalPrice, clearCart, addItem } = useCart();
@@ -168,10 +167,25 @@ const Cart = () => {
         {/* Suggested Products */}
         {suggestedProducts.length > 0 && (
           <div className="pt-10 border-t border-border/60">
-            <div className="flex items-center justify-end mb-6">
-              <Link to="/products" className="text-xs font-bold text-sky-400 hover:underline flex items-center gap-1">
-                View All <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-sky-400" />
+                <h3 className="font-display text-xl font-bold">Recommended For You</h3>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShuffleIndex(prev => prev + 1)}
+                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  title="Shuffle recommendations"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  <span>Shuffle</span>
+                </button>
+                <Link to="/products" className="text-xs font-bold text-sky-400 hover:underline flex items-center gap-1">
+                  View All <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
