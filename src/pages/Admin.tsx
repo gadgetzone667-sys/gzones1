@@ -237,7 +237,7 @@ const Admin = () => {
     }
   };
 
-  if (!user?.isAdmin) return <Navigate to="/login" replace />;
+  if (!user?.isAdmin) return <Navigate to="/admin/login" replace />;
 
   // --- Product Functions ---
   const startEdit = (p: Product) => {

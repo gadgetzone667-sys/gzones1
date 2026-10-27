@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -69,6 +69,8 @@ const Login = () => {
 
   const { login, register, skipLogin } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectPath = searchParams.get("redirect") || "/";
 
   // Initialize captcha if threshold reached
   useEffect(() => {
@@ -141,7 +143,7 @@ const Login = () => {
         const result = await register(cleanEmail, cleanPassword);
         if (result === true) {
           toast.success("Account created successfully. Welcome to GadgetZone!");
-          navigate("/");
+          navigate(redirectPath);
         } else {
           setError(typeof result === "string" ? result : "Registration failed.");
         }
@@ -154,19 +156,7 @@ const Login = () => {
           setShowCaptcha(false);
 
           toast.success("Logged in successfully.");
-          const storedUser = localStorage.getItem("GadgetZone_user");
-          const parsed = storedUser ? JSON.parse(storedUser) : null;
-
-          if (
-            parsed?.isAdmin ||
-            cleanEmail.toLowerCase().includes("vijay") ||
-            cleanEmail.toLowerCase().includes("admin") ||
-            cleanEmail.toLowerCase().includes("gzones")
-          ) {
-            navigate("/admin");
-          } else {
-            navigate("/");
-          }
+          navigate(redirectPath);
         } else {
           // Failed attempt handling
           const newCount = failedAttempts + 1;
@@ -259,7 +249,7 @@ const Login = () => {
                       type="text"
                       required
                       autoComplete="username"
-                      placeholder="e.g. admin@gzones.in or user"
+                      placeholder="e.g. user@example.com or username"
                       value={email}
                       onChange={e => setEmail(e.target.value)}
                       className="pl-10 h-11 bg-muted/30 border border-input/60 rounded-xl text-sm placeholder:text-muted-foreground/40 focus-visible:ring-1 focus-visible:ring-primary/40"

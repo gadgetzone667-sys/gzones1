@@ -19,6 +19,7 @@ import Cart from "./pages/Cart";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import Admin from "./pages/Admin";
+import AdminLogin from "./pages/AdminLogin";
 import ProductDetails from "./pages/ProductDetails";
 import Wishlist from "./pages/Wishlist";
 import Checkout from "./pages/Checkout";
@@ -87,6 +88,7 @@ const App = () => (
                       <Route path="/product/:id" element={<ProductDetails />} />
                       <Route path="/orders" element={<Orders />} />
                       <Route path="/admin" element={<Admin />} />
+                      <Route path="/admin/login" element={<AdminLogin />} />
                       <Route path="/login" element={<Login />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>

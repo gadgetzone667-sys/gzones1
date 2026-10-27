@@ -33,41 +33,58 @@ const Index = () => {
   const reviewsRef = useRef<HTMLDivElement | null>(null);
   const [isReviewsHovered, setIsReviewsHovered] = useState(false);
 
-  // Ultra-smooth 60FPS requestAnimationFrame auto-scroll for Featured Products
+  // High-performance requestAnimationFrame auto-scroll for Featured Products (TOP HARDWARE)
   useEffect(() => {
     let animId: number;
+    const el = productsRef.current;
+    if (!el) return;
+
+    let currentScroll = el.scrollLeft;
+
     const scrollStep = () => {
       if (productsRef.current && !isProductsHovered) {
-        const { scrollLeft, scrollWidth, clientWidth } = productsRef.current;
-        if (scrollLeft + clientWidth >= scrollWidth - 2) {
-          productsRef.current.scrollLeft = 0;
-        } else {
-          productsRef.current.scrollLeft += 0.85;
+        const maxScroll = productsRef.current.scrollWidth - productsRef.current.clientWidth;
+        if (maxScroll > 0) {
+          // Faster, snappy movement (1.75px per frame vs old 0.85px)
+          currentScroll += 1.75;
+          if (currentScroll >= maxScroll - 2) {
+            currentScroll = 0;
+          }
+          productsRef.current.scrollLeft = currentScroll;
         }
       }
       animId = requestAnimationFrame(scrollStep);
     };
+
     animId = requestAnimationFrame(scrollStep);
     return () => cancelAnimationFrame(animId);
-  }, [isProductsHovered]);
+  }, [isProductsHovered, sliderProducts.length]);
 
-  // Ultra-smooth 60FPS requestAnimationFrame auto-scroll for Reviews
+  // Smooth requestAnimationFrame auto-scroll for Reviews
   useEffect(() => {
     let animId: number;
+    const el = reviewsRef.current;
+    if (!el) return;
+
+    let currentScroll = el.scrollLeft;
+
     const scrollStep = () => {
       if (reviewsRef.current && !isReviewsHovered) {
-        const { scrollLeft, scrollWidth, clientWidth } = reviewsRef.current;
-        if (scrollLeft + clientWidth >= scrollWidth - 2) {
-          reviewsRef.current.scrollLeft = 0;
-        } else {
-          reviewsRef.current.scrollLeft += 0.75;
+        const maxScroll = reviewsRef.current.scrollWidth - reviewsRef.current.clientWidth;
+        if (maxScroll > 0) {
+          currentScroll += 1.1;
+          if (currentScroll >= maxScroll - 2) {
+            currentScroll = 0;
+          }
+          reviewsRef.current.scrollLeft = currentScroll;
         }
       }
       animId = requestAnimationFrame(scrollStep);
     };
+
     animId = requestAnimationFrame(scrollStep);
     return () => cancelAnimationFrame(animId);
-  }, [isReviewsHovered]);
+  }, [isReviewsHovered, sliderReviews.length]);
 
   const scrollProducts = (direction: "left" | "right") => {
     if (!productsRef.current) return;

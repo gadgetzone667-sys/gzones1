@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ShoppingCart, Search, Menu, X, Monitor, User, Heart, Package } from "lucide-react";
+import { toast } from "sonner";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import { useProducts } from "../context/ProductContext";
@@ -26,7 +27,19 @@ const Navbar = () => {
   const { products } = useProducts();
   const { totalWishlistItems } = useWishlist();
   const location = useLocation();
+  const navigate = useNavigate();
   const navRef = useRef<HTMLElement | null>(null);
+
+  const handleCartClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    closeSearch();
+    if (!user) {
+      toast.info("Please log in to access your shopping cart.");
+      navigate("/login?redirect=/cart");
+    } else {
+      navigate("/cart");
+    }
+  };
 
   const closeSearch = () => {
     setSearchOpen(false);
@@ -208,9 +221,9 @@ const Navbar = () => {
               )}
             </Link>
 
-            <Link
-              to="/cart"
-              onClick={closeSearch}
+            <button
+              type="button"
+              onClick={handleCartClick}
               className="group relative p-1.5 sm:p-2 rounded-xl border border-transparent hover:border-primary/30 hover:bg-primary/15 hover:text-primary hover:shadow-[0_0_14px_rgba(56,189,248,0.35)] hover:scale-110 active:scale-95 transition-all duration-200 shrink-0"
               title="Cart"
             >
@@ -220,7 +233,7 @@ const Navbar = () => {
                   {totalItems}
                 </span>
               )}
-            </Link>
+            </button>
 
             <button
               onClick={() => {

@@ -14,18 +14,18 @@ interface Particle {
 interface ConnectionPulse {
   p1Index: number;
   p2Index: number;
-  progress: number; // 0 to 1
+  progress: number;
   speed: number;
   color: string;
 }
 
 const COLOR_PALETTE = [
-  { main: "rgba(0, 240, 255, 0.9)", glow: "#00f0ff" },   // Cyan
-  { main: "rgba(255, 0, 127, 0.9)", glow: "#ff007f" },   // Magenta
-  { main: "rgba(168, 85, 247, 0.9)", glow: "#a855f7" },  // Purple
-  { main: "rgba(59, 130, 246, 0.9)", glow: "#3b82f6" },   // Neon Blue
-  { main: "rgba(16, 185, 129, 0.9)", glow: "#10b981" },  // Emerald
-  { main: "rgba(245, 158, 11, 0.9)", glow: "#f59e0b" },  // Gold
+  { main: "rgba(0, 240, 255, 0.9)", glow: "rgba(0, 240, 255, 0.3)" },   // Cyan
+  { main: "rgba(255, 0, 127, 0.9)", glow: "rgba(255, 0, 127, 0.3)" },   // Magenta
+  { main: "rgba(168, 85, 247, 0.9)", glow: "rgba(168, 85, 247, 0.3)" },  // Purple
+  { main: "rgba(59, 130, 246, 0.9)", glow: "rgba(59, 130, 246, 0.3)" },   // Neon Blue
+  { main: "rgba(16, 185, 129, 0.9)", glow: "rgba(16, 185, 129, 0.3)" },  // Emerald
+  { main: "rgba(245, 158, 11, 0.9)", glow: "rgba(245, 158, 11, 0.3)" },  // Gold
 ];
 
 export const GlowingNetworkBackground: React.FC = () => {
@@ -34,12 +34,18 @@ export const GlowingNetworkBackground: React.FC = () => {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { alpha: false });
     if (!ctx) return;
 
     let animationFrameId: number;
     let width = (canvas.width = window.innerWidth);
     let height = (canvas.height = window.innerHeight);
+
+    let isVisible = !document.hidden;
+    const handleVisibilityChange = () => {
+      isVisible = !document.hidden;
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     const handleResize = () => {
       if (!canvas) return;
@@ -47,13 +53,13 @@ export const GlowingNetworkBackground: React.FC = () => {
       height = canvas.height = window.innerHeight;
     };
 
-    window.addEventListener("resize", handleResize);
+    window.addEventListener("resize", handleResize, { passive: true });
 
-    // Mouse tracking
+    // Mouse tracking (throttled)
     const mouse = {
       x: -1000,
       y: -1000,
-      radius: 180,
+      radius: 150,
     };
 
     const handleMouseMove = (e: MouseEvent) => {
@@ -66,11 +72,11 @@ export const GlowingNetworkBackground: React.FC = () => {
       mouse.y = -1000;
     };
 
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseleave", handleMouseLeave);
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+    window.addEventListener("mouseleave", handleMouseLeave, { passive: true });
 
-    // Initialize particles
-    const particleCount = Math.min(Math.floor((width * height) / 14000), 85);
+    // Optimized particle count: balanced density without frame drops
+    const particleCount = Math.min(Math.floor((width * height) / 32000), 40);
     const particles: Particle[] = [];
 
     for (let i = 0; i < particleCount; i++) {
@@ -78,44 +84,48 @@ export const GlowingNetworkBackground: React.FC = () => {
       particles.push({
         x: Math.random() * width,
         y: Math.random() * height,
-        vx: (Math.random() - 0.5) * 0.7,
-        vy: (Math.random() - 0.5) * 0.7,
-        radius: Math.random() * 2 + 1.8,
+        vx: (Math.random() - 0.5) * 0.6,
+        vy: (Math.random() - 0.5) * 0.6,
+        radius: Math.random() * 1.6 + 1.6,
         color: paletteItem.main,
         glowColor: paletteItem.glow,
         pulsePhase: Math.random() * Math.PI * 2,
       });
     }
 
-    // Dynamic passing light pulses along connections
     const pulses: ConnectionPulse[] = [];
-    const maxDist = 140;
+    const maxDist = 135;
 
     const animate = () => {
-      ctx.clearRect(0, 0, width, height);
+      if (!isVisible) {
+        animationFrameId = requestAnimationFrame(animate);
+        return;
+      }
 
-      // Deep dark futuristic canvas overlay
-      const gradient = ctx.createLinearGradient(0, 0, width, height);
-      gradient.addColorStop(0, "rgba(5, 8, 20, 0.95)");
-      gradient.addColorStop(0.5, "rgba(9, 13, 26, 0.96)");
-      gradient.addColorStop(1, "rgba(3, 5, 14, 0.97)");
-      ctx.fillStyle = gradient;
+      // Fast solid dark background fill
+      ctx.fillStyle = "#060913";
+      ctx.fillRect(0, 0, width, height);
+
+      // Subtle gradient vignette without re-allocating
+      const radialGrad = ctx.createRadialGradient(width / 2, height / 2, 50, width / 2, height / 2, width);
+      radialGrad.addColorStop(0, "rgba(10, 16, 32, 0.4)");
+      radialGrad.addColorStop(1, "rgba(4, 6, 14, 0.85)");
+      ctx.fillStyle = radialGrad;
       ctx.fillRect(0, 0, width, height);
 
       // Update particle positions
-      particles.forEach((p) => {
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
         p.x += p.vx;
         p.y += p.vy;
 
-        // Bounce off canvas walls
         if (p.x < 0 || p.x > width) p.vx *= -1;
         if (p.y < 0 || p.y > height) p.vy *= -1;
 
-        p.pulsePhase += 0.03;
-      });
+        p.pulsePhase += 0.025;
+      }
 
-      // Maintain passing connection pulses
-      // Clean up dead pulses
+      // Clean up finished pulses
       for (let i = pulses.length - 1; i >= 0; i--) {
         pulses[i].progress += pulses[i].speed;
         if (pulses[i].progress >= 1) {
@@ -123,40 +133,31 @@ export const GlowingNetworkBackground: React.FC = () => {
         }
       }
 
-      // Draw connections and spawn passing glowing pulses
+      // Batched lines pass: draw all connections in a single lightweight stroke pass
+      ctx.beginPath();
+      ctx.strokeStyle = "rgba(56, 189, 248, 0.15)";
+      ctx.lineWidth = 1;
+
       for (let i = 0; i < particles.length; i++) {
+        const p1 = particles[i];
         for (let j = i + 1; j < particles.length; j++) {
-          const p1 = particles[i];
           const p2 = particles[j];
           const dx = p2.x - p1.x;
           const dy = p2.y - p1.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
+          const distSq = dx * dx + dy * dy;
 
-          if (dist < maxDist) {
-            const alpha = (1 - dist / maxDist) * 0.45;
-
-            // Gradient line between multicolor dots
-            const lineGrad = ctx.createLinearGradient(p1.x, p1.y, p2.x, p2.y);
-            lineGrad.addColorStop(0, p1.color.replace("0.9", `${alpha}`));
-            lineGrad.addColorStop(1, p2.color.replace("0.9", `${alpha}`));
-
-            ctx.save();
-            ctx.beginPath();
+          if (distSq < maxDist * maxDist) {
             ctx.moveTo(p1.x, p1.y);
             ctx.lineTo(p2.x, p2.y);
-            ctx.strokeStyle = lineGrad;
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            ctx.restore();
 
-            // Occasionally spawn a passing glowing light packet along active connections
-            if (Math.random() < 0.003 && pulses.length < 40) {
+            // Spawn passing light packets
+            if (Math.random() < 0.002 && pulses.length < 15) {
               pulses.push({
                 p1Index: i,
                 p2Index: j,
                 progress: 0,
-                speed: 0.008 + Math.random() * 0.012,
-                color: p1.glowColor,
+                speed: 0.01 + Math.random() * 0.012,
+                color: p1.color,
               });
             }
           }
@@ -164,74 +165,50 @@ export const GlowingNetworkBackground: React.FC = () => {
 
         // Connect to mouse cursor if nearby
         if (mouse.x > 0 && mouse.y > 0) {
-          const p = particles[i];
-          const dx = mouse.x - p.x;
-          const dy = mouse.y - p.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-
-          if (dist < mouse.radius) {
-            const alpha = (1 - dist / mouse.radius) * 0.6;
-            ctx.save();
-            ctx.beginPath();
-            ctx.moveTo(p.x, p.y);
+          const dx = mouse.x - p1.x;
+          const dy = mouse.y - p1.y;
+          const distSq = dx * dx + dy * dy;
+          if (distSq < mouse.radius * mouse.radius) {
+            ctx.moveTo(p1.x, p1.y);
             ctx.lineTo(mouse.x, mouse.y);
-            ctx.strokeStyle = `rgba(0, 240, 255, ${alpha})`;
-            ctx.lineWidth = 1.2;
-            ctx.shadowBlur = 8;
-            ctx.shadowColor = "#00f0ff";
-            ctx.stroke();
-            ctx.restore();
           }
         }
       }
+      ctx.stroke();
 
-      // Draw passing glowing pulses along connection lines
-      pulses.forEach((pulse) => {
+      // Render pulses efficiently
+      for (let i = 0; i < pulses.length; i++) {
+        const pulse = pulses[i];
         const p1 = particles[pulse.p1Index];
         const p2 = particles[pulse.p2Index];
-        if (!p1 || !p2) return;
+        if (!p1 || !p2) continue;
 
         const currentX = p1.x + (p2.x - p1.x) * pulse.progress;
         const currentY = p1.y + (p2.y - p1.y) * pulse.progress;
 
-        ctx.save();
         ctx.beginPath();
-        ctx.arc(currentX, currentY, 2.5, 0, Math.PI * 2);
+        ctx.arc(currentX, currentY, 2.2, 0, Math.PI * 2);
         ctx.fillStyle = "#ffffff";
-        ctx.shadowBlur = 14;
-        ctx.shadowColor = pulse.color;
+        ctx.fill();
+      }
+
+      // Draw particles with 2-layer halo (hardware fast, zero shadowBlur overhead)
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        const radius = p.radius + Math.sin(p.pulsePhase) * 0.4;
+
+        // Outer soft glow aura
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius * 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = p.glowColor;
         ctx.fill();
 
-        // Draw light streak trailing behind pulse
-        const trailX = p1.x + (p2.x - p1.x) * Math.max(0, pulse.progress - 0.08);
-        const trailY = p1.y + (p2.y - p1.y) * Math.max(0, pulse.progress - 0.08);
-
-        const streakGrad = ctx.createLinearGradient(trailX, trailY, currentX, currentY);
-        streakGrad.addColorStop(0, "rgba(255, 255, 255, 0)");
-        streakGrad.addColorStop(1, pulse.color);
-
+        // Core bright center
         ctx.beginPath();
-        ctx.moveTo(trailX, trailY);
-        ctx.lineTo(currentX, currentY);
-        ctx.strokeStyle = streakGrad;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        ctx.restore();
-      });
-
-      // Draw glowing multicolored dots
-      particles.forEach((p) => {
-        const currentRadius = p.radius + Math.sin(p.pulsePhase) * 0.6;
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, Math.max(1, currentRadius), 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
         ctx.fillStyle = p.color;
-        ctx.shadowBlur = 12 + Math.sin(p.pulsePhase) * 4;
-        ctx.shadowColor = p.glowColor;
         ctx.fill();
-        ctx.restore();
-      });
+      }
 
       animationFrameId = requestAnimationFrame(animate);
     };
@@ -240,6 +217,7 @@ export const GlowingNetworkBackground: React.FC = () => {
 
     return () => {
       cancelAnimationFrame(animationFrameId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseleave", handleMouseLeave);
@@ -249,7 +227,7 @@ export const GlowingNetworkBackground: React.FC = () => {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 pointer-events-none z-[-1] transition-opacity duration-1000"
+      className="fixed inset-0 pointer-events-none z-[-1] will-change-transform"
     />
   );
 };

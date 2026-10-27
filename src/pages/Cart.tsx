@@ -1,13 +1,15 @@
 import { useState, useMemo } from "react";
 import { useCart } from "../context/CartContext";
 import { useProducts } from "../context/ProductContext";
+import { useAuth } from "../context/AuthContext";
 import { motion } from "framer-motion";
-import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, Sparkles, PlusCircle, RefreshCw } from "lucide-react";
+import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, Sparkles, PlusCircle, RefreshCw, Lock } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import ProductCard from "../components/ProductCard";
 
 const Cart = () => {
+  const { user, isLoggedIn } = useAuth();
   const { items, removeItem, updateQuantity, totalPrice, clearCart, addItem } = useCart();
   const { products } = useProducts();
   const [shuffleIndex, setShuffleIndex] = useState(0);
@@ -43,6 +45,40 @@ const Cart = () => {
     const rotated = [...ranked.slice(offset), ...ranked.slice(0, offset)];
     return rotated.slice(0, 4).map(r => r.product);
   }, [items, products, shuffleIndex]);
+
+  if (!isLoggedIn || !user) {
+    return (
+      <div className="min-h-screen min-h-dvh pt-28 pb-16 flex items-center justify-center px-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-md w-full bg-card border border-border/80 rounded-3xl p-8 text-center shadow-2xl relative overflow-hidden"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-4 text-primary">
+            <Lock className="h-8 w-8" />
+          </div>
+          <h2 className="font-display text-2xl font-bold mb-2">Sign In Required</h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            Please log in with your customer account to view items in your cart, manage saved builds, and proceed to checkout.
+          </p>
+          <div className="flex flex-col gap-3">
+            <Link
+              to="/login?redirect=/cart"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 text-white font-bold text-sm shadow-lg shadow-sky-500/25 hover:shadow-sky-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all"
+            >
+              Sign In to View Cart <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              to="/products"
+              className="inline-flex items-center justify-center px-6 py-3 rounded-xl border border-border bg-muted/20 text-muted-foreground hover:text-foreground text-xs font-semibold hover:bg-muted/40 transition-colors"
+            >
+              Continue Browsing Products
+            </Link>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   if (items.length === 0) {
     return (

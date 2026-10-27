@@ -44,6 +44,11 @@ const ProductDetails = () => {
   }
 
   const handleAddToCart = () => {
+    if (!user) {
+      toast.info("Please sign in before adding items to your cart.");
+      navigate("/login?redirect=/cart");
+      return;
+    }
     addItem({ id: product.id, name: product.name, price: product.price, type: "product" });
     toast.success(`${product.name} added to cart`);
   };

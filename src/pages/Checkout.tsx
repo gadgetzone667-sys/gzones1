@@ -556,6 +556,25 @@ const Checkout = () => {
     );
   }
 
+  if (!user) {
+    return (
+      <div className="min-h-screen pt-32 pb-16 flex flex-col items-center justify-center bg-background px-4">
+        <div className="bg-muted/30 p-10 rounded-full mb-6 border border-border/50">
+          <UserCheck className="h-16 w-16 text-muted-foreground stroke-1" />
+        </div>
+        <h2 className="font-display text-3xl font-bold mb-3 tracking-tight">Login Required</h2>
+        <p className="text-muted-foreground mb-8 text-center max-w-sm">
+          Please log in to your account to review your cart and complete checkout.
+        </p>
+        <Link to="/login?redirect=/cart">
+          <Button size="lg" className="rounded-xl px-8 shadow-md">
+            Sign In to Continue
+          </Button>
+        </Link>
+      </div>
+    );
+  }
+
   if (items.length === 0) {
     return (
       <div className="min-h-screen pt-32 pb-16 flex flex-col items-center justify-center bg-background px-4">
