@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { isAdminSubdomain, getStorefrontUrl } from "../lib/domain";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import {
@@ -13,7 +14,8 @@ import {
   EyeOff,
   RefreshCw,
   Store,
-  KeyRound
+  KeyRound,
+  ExternalLink
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -27,10 +29,12 @@ const AdminLogin = () => {
 
   const { login, logout, user } = useAuth();
   const navigate = useNavigate();
+  const onAdminSubdomain = isAdminSubdomain();
+  const storefrontUrl = getStorefrontUrl();
 
-  // If already logged in as admin, redirect to /admin
+  // If already logged in as admin, redirect to dashboard (/ on subdomain, /admin on main domain)
   if (user?.isAdmin) {
-    navigate("/admin");
+    navigate(onAdminSubdomain ? "/" : "/admin");
     return null;
   }
 
@@ -58,7 +62,7 @@ const AdminLogin = () => {
 
         if (parsed?.isAdmin) {
           toast.success("Administrator access verified. Welcome to Management Console.");
-          navigate("/admin");
+          navigate(onAdminSubdomain ? "/" : "/admin");
         } else {
           // Logged in as normal user on admin URL -> block access
           logout();
@@ -92,9 +96,14 @@ const AdminLogin = () => {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/30 text-purple-400 mb-2 shadow-inner">
             <KeyRound className="h-7 w-7" />
           </div>
-          <span className="inline-block px-3 py-1 rounded-full bg-purple-500/15 border border-purple-500/40 text-purple-300 text-[10px] font-black uppercase tracking-widest">
-            MANAGEMENT CONSOLE
-          </span>
+          <div className="flex items-center justify-center gap-1.5 flex-wrap">
+            <span className="inline-block px-3 py-1 rounded-full bg-purple-500/15 border border-purple-500/40 text-purple-300 text-[10px] font-black uppercase tracking-widest">
+              MANAGEMENT CONSOLE
+            </span>
+            <span className="inline-block px-2.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-mono">
+              admin.gzones.in
+            </span>
+          </div>
           <h1 className="text-2xl font-extrabold tracking-tight text-foreground font-display">
             Admin Authentication
           </h1>
@@ -183,13 +192,14 @@ const AdminLogin = () => {
 
         {/* Back to Public Store */}
         <div className="mt-6 pt-4 border-t border-slate-800 text-center">
-          <Link
-            to="/"
+          <a
+            href={storefrontUrl}
             className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-sky-400 transition-colors"
           >
-            <Store className="h-3.5 w-3.5" />
-            <span>Return to GadgetZone Public Store</span>
-          </Link>
+            <Store className="h-3.5 w-3.5 text-sky-400" />
+            <span>Return to GadgetZone Public Store (gzones.in)</span>
+            <ExternalLink className="h-3 w-3 text-slate-500" />
+          </a>
         </div>
       </motion.div>
     </div>

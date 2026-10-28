@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ShoppingCart, Search, Menu, X, Monitor, User, Heart, Package } from "lucide-react";
+import { ShoppingCart, Search, Menu, X, Monitor, User, Heart, Package, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import { useProducts } from "../context/ProductContext";
 import { useWishlist } from "../context/WishlistContext";
+import { getAdminPortalUrl } from "../lib/domain";
 import { motion, AnimatePresence } from "framer-motion";
 import gadgetZoneLogo from "../assets/Gadgetzone.png";
 
@@ -23,12 +24,13 @@ const Navbar = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { totalItems } = useCart();
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const { products } = useProducts();
   const { totalWishlistItems } = useWishlist();
   const location = useLocation();
   const navigate = useNavigate();
   const navRef = useRef<HTMLElement | null>(null);
+  const adminPortalUrl = getAdminPortalUrl(token, user);
 
   const handleCartClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -102,6 +104,18 @@ const Navbar = () => {
           {/* Desktop links */}
           <div className="hidden md:flex items-center gap-1 lg:gap-2.5 ml-2 lg:ml-6 flex-1 whitespace-nowrap">
             {[...navLinks, ...(user?.isAdmin ? [{ to: "/admin", label: "Admin" }] : [])].map(link => {
+              if (link.to === "/admin" && adminPortalUrl.startsWith("http")) {
+                return (
+                  <a
+                    key={link.to}
+                    href={adminPortalUrl}
+                    className="relative px-3 lg:px-3.5 py-1.5 rounded-xl text-xs lg:text-sm font-bold whitespace-nowrap transition-all duration-200 shrink-0 text-purple-300 bg-purple-500/15 border border-purple-500/40 hover:bg-purple-500/25 shadow-[0_0_12px_rgba(168,85,247,0.25)] flex items-center gap-1.5 hover:scale-[1.03]"
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5 text-purple-400" />
+                    <span>Admin Console</span>
+                  </a>
+                );
+              }
               const isActive = location.pathname === link.to;
               return (
                 <Link
@@ -170,6 +184,18 @@ const Navbar = () => {
                         >
                           <Package className="h-4 w-4" /> My Orders
                         </Link>
+                        {user.isAdmin && (
+                          <a
+                            href={adminPortalUrl}
+                            onClick={() => {
+                              closeSearch();
+                              setUserMenuOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm text-purple-400 hover:bg-purple-500/10 rounded-lg font-medium transition-colors flex items-center gap-2"
+                          >
+                            <ShieldCheck className="h-4 w-4" /> Admin Portal
+                          </a>
+                        )}
                         <button 
                           onClick={() => {
                             logout();
@@ -332,20 +358,35 @@ const Navbar = () => {
             className="md:hidden overflow-hidden border-t border-border bg-background"
           >
             <div className="px-4 py-4 space-y-1 bg-background/95 backdrop-blur-lg">
-              {[...navLinks, ...(user?.isAdmin ? [{ to: "/admin", label: "Admin" }] : [])].map(link => (
-                <Link
-                  key={link.to}
-                  to={link.to}
-                  onClick={() => setMobileOpen(false)}
-                  className={`block px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                    location.pathname === link.to
-                      ? "bg-sky-500/20 text-sky-400 border border-sky-500/40 shadow-[0_0_12px_rgba(56,189,248,0.3)]"
-                      : "text-foreground hover:text-sky-400 hover:bg-sky-500/10 hover:translate-x-1.5 hover:shadow-[0_0_10px_rgba(56,189,248,0.2)]"
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              ))}
+              {[...navLinks, ...(user?.isAdmin ? [{ to: "/admin", label: "Admin" }] : [])].map(link => {
+                if (link.to === "/admin" && adminPortalUrl.startsWith("http")) {
+                  return (
+                    <a
+                      key={link.to}
+                      href={adminPortalUrl}
+                      onClick={() => setMobileOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 text-purple-300 bg-purple-500/15 border border-purple-500/40 shadow-[0_0_12px_rgba(168,85,247,0.25)]"
+                    >
+                      <ShieldCheck className="h-4 w-4 text-purple-400" />
+                      <span>Admin Console (admin.gzones.in)</span>
+                    </a>
+                  );
+                }
+                return (
+                  <Link
+                    key={link.to}
+                    to={link.to}
+                    onClick={() => setMobileOpen(false)}
+                    className={`block px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                      location.pathname === link.to
+                        ? "bg-sky-500/20 text-sky-400 border border-sky-500/40 shadow-[0_0_12px_rgba(56,189,248,0.3)]"
+                        : "text-foreground hover:text-sky-400 hover:bg-sky-500/10 hover:translate-x-1.5 hover:shadow-[0_0_10px_rgba(56,189,248,0.2)]"
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
             </div>
           </motion.div>
         )}

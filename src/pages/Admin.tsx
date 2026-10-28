@@ -8,6 +8,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import { Navigate } from "react-router-dom";
+import { isAdminSubdomain } from "../lib/domain";
 import {
   Pencil,
   Trash2,
@@ -24,6 +25,7 @@ import {
   IndianRupee,
   Upload,
   Camera,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -237,7 +239,8 @@ const Admin = () => {
     }
   };
 
-  if (!user?.isAdmin) return <Navigate to="/admin/login" replace />;
+  const onAdminSubdomain = isAdminSubdomain();
+  if (!user?.isAdmin) return <Navigate to={onAdminSubdomain ? "/login" : "/admin/login"} replace />;
 
   // --- Product Functions ---
   const startEdit = (p: Product) => {
@@ -395,12 +398,24 @@ const Admin = () => {
   };
 
   return (
-    <div className="container max-w-5xl 2xl:max-w-7xl pt-24 pb-16 px-4 sm:px-6 min-h-screen min-h-dvh">
+    <div className={`container max-w-5xl 2xl:max-w-7xl ${onAdminSubdomain ? "pt-6 sm:pt-8" : "pt-24"} pb-16 px-4 sm:px-6 min-h-screen min-h-dvh`}>
       <div
         className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8 animate-fade-in-up"
         style={{ animationDelay: "0.1s" }}
       >
         <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider bg-purple-500/15 border border-purple-500/30 text-purple-300">
+              <ShieldCheck className="h-3 w-3 text-purple-400" /> admin.gzones.in
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              Gateway Connected
+            </span>
+          </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Admin Pricing & Management Panel</h1>
           <p className="text-xs sm:text-sm text-muted-foreground">
             Edit pricing for products, services, and PC components

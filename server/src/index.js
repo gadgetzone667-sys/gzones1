@@ -30,8 +30,33 @@ import contactRoutes from "./routes/contact.js";
 
 const app = express();
 
-// Middleware
-app.use(cors({ origin: "http://localhost:5173", credentials: true }));
+// Middleware: Configure CORS for main domain and admin subdomain
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://admin.localhost:5173",
+  "http://localhost:3000",
+  "https://gzones.in",
+  "https://www.gzones.in",
+  "https://admin.gzones.in",
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+      if (
+        allowedOrigins.includes(origin) ||
+        /^https?:\/\/(?:[a-zA-Z0-9-]+\.)*gzones\.in(?::\d+)?$/.test(origin) ||
+        /^http:\/\/(?:[a-zA-Z0-9-]+\.)*localhost(?::\d+)?$/.test(origin)
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // Routes

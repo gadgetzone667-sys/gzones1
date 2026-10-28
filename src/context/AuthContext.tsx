@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { extractSsoData } from "../lib/domain";
 
 interface User {
   id: string;
@@ -27,8 +28,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [hasSkippedLogin, setHasSkippedLogin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // On mount, restore session from localStorage
+  // On mount, restore session from localStorage or handle incoming SSO payload
   useEffect(() => {
+    // Check if incoming SSO payload exists from gzones.in to admin.gzones.in
+    const sso = extractSsoData();
+    if (sso) {
+      localStorage.setItem("GadgetZone_token", sso.token);
+      localStorage.setItem("GadgetZone_user", JSON.stringify(sso.user));
+      setUser(sso.user);
+      setToken(sso.token);
+      setIsLoading(false);
+      return;
+    }
+
     const storedToken = localStorage.getItem("GadgetZone_token");
     const storedUser = localStorage.getItem("GadgetZone_user");
     if (storedToken && storedUser) {
