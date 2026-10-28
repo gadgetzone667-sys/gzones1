@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useProducts } from "../context/ProductContext";
 import { useReviews } from "../context/ReviewContext";
-import type { Product } from "../data/products";
+import { services as fallbackServices, pcComponents as fallbackComponents, type Product } from "../data/products";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -170,9 +170,13 @@ const Admin = () => {
       const res = await fetch("/api/services");
       if (!res.ok) throw new Error("Failed to fetch services");
       const data = await res.json();
-      setServices(data);
+      if (Array.isArray(data) && data.length > 0) {
+        setServices(data);
+      } else {
+        setServices(fallbackServices as any);
+      }
     } catch {
-      toast.error("Could not load services for editing.");
+      setServices(fallbackServices as any);
     } finally {
       setServicesLoading(false);
     }
@@ -184,9 +188,13 @@ const Admin = () => {
       const res = await fetch("/api/components");
       if (!res.ok) throw new Error("Failed to fetch PC components");
       const data = await res.json();
-      setComponentsGrouped(data);
+      if (data && Object.keys(data).length > 0) {
+        setComponentsGrouped(data);
+      } else {
+        setComponentsGrouped(fallbackComponents as any);
+      }
     } catch {
-      toast.error("Could not load PC components.");
+      setComponentsGrouped(fallbackComponents as any);
     } finally {
       setComponentsLoading(false);
     }

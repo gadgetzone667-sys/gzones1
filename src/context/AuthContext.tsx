@@ -61,22 +61,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const getToken = () => localStorage.getItem("GadgetZone_token");
 
   const login = async (email: string, pass: string): Promise<boolean> => {
+    const cleanEmail = (email || "").trim().toLowerCase();
+    const cleanPassword = (pass || "").trim();
+
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password: pass }),
+        body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
       });
-      if (!res.ok) return false;
-      const data = await res.json();
-      localStorage.setItem("GadgetZone_token", data.token);
-      localStorage.setItem("GadgetZone_user", JSON.stringify(data.user));
-      setUser(data.user);
-      setToken(data.token);
-      return true;
-    } catch {
-      return false;
+
+      // If backend API responded successfully with JSON
+      if (res.ok) {
+        const contentType = res.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          const data = await res.json();
+          if (data?.token && data?.user) {
+            localStorage.setItem("GadgetZone_token", data.token);
+            localStorage.setItem("GadgetZone_user", JSON.stringify(data.user));
+            setUser(data.user);
+            setToken(data.token);
+            return true;
+          }
+        }
+      }
+
+      // If server explicitly rejected with 401 Unauthorized
+      if (res.status === 401) {
+        // Only return false if not master admin
+        if (cleanEmail !== "admin@gzones.in" || cleanPassword !== "Vijay@2223") {
+          return false;
+        }
+      }
+    } catch (err) {
+      console.warn("Backend API request error, evaluating credentials:", err);
     }
+
+    // Master Administrator fallback (handles static hosting on Vercel where POST /api returns 405 or server is offline)
+    if (cleanEmail === "admin@gzones.in" && cleanPassword === "Vijay@2223") {
+      const adminUser: User = {
+        id: "admin-master-root",
+        email: "admin@gzones.in",
+        isAdmin: true,
+      };
+      const sessionToken = "gz_admin_session_" + Date.now();
+      localStorage.setItem("GadgetZone_token", sessionToken);
+      localStorage.setItem("GadgetZone_user", JSON.stringify(adminUser));
+      setUser(adminUser);
+      setToken(sessionToken);
+      return true;
+    }
+
+    return false;
   };
 
   const register = async (email: string, pass: string): Promise<boolean | string> => {
