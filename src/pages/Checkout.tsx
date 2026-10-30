@@ -6,9 +6,10 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import { Link, useNavigate } from "react-router-dom";
-import { CheckCircle2, Package, ArrowLeft, CreditCard, ShoppingBag, Loader2, Truck, Globe, MapPin, Building, UserCheck } from "lucide-react";
+import { CheckCircle2, Package, ArrowLeft, CreditCard, ShoppingBag, Loader2, Truck, Globe, MapPin, Building, UserCheck, FileSpreadsheet } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import { saveLocalOrder, downloadOrderExcel, type Order } from "../lib/orderExport";
 
 const COUNTRIES = [
   "India",
@@ -435,7 +436,12 @@ const Checkout = () => {
         }));
       } catch {}
 
-      const orderData = {
+      const localId = `ORD-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+
+      const orderData: Order = {
+        _id: localId,
+        userId: user?.id || "guest",
+        customerEmail: user?.email || "",
         items: items.map(item => ({
           productId: item.id,
           name: item.name,
@@ -461,12 +467,17 @@ const Checkout = () => {
         paymentMethod: selectedPaymentText,
         trackingId,
         trackingStage: 1, // Step 1: Order Placed
+        status: "Pending",
         courier: "SpeedPost Express",
         estimatedDeliveryDate: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+        createdAt: new Date().toISOString(),
       };
 
+      // Ensure the order data is always sent to the Admin Dashboard
+      saveLocalOrder(orderData);
+
       try {
-        await fetch("/api/orders", {
+        const res = await fetch("/api/orders", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -474,6 +485,13 @@ const Checkout = () => {
           },
           body: JSON.stringify(orderData)
         });
+        if (res.ok) {
+          const serverCreated = await res.json();
+          if (serverCreated?._id) {
+            orderData._id = serverCreated._id;
+            saveLocalOrder(orderData);
+          }
+        }
       } catch (err) {
         console.warn("Backend order sync notice:", err);
       }
@@ -551,6 +569,18 @@ const Checkout = () => {
               </Button>
             </Link>
           </div>
+
+          {orderDetails && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="lg"
+              onClick={() => downloadOrderExcel(orderDetails as Order)}
+              className="w-full mt-3 h-11 font-bold rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" /> Download Order Invoice (.csv / Excel)
+            </Button>
+          )}
         </motion.div>
       </div>
     );

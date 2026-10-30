@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useProducts } from "../context/ProductContext";
 import { useReviews } from "../context/ReviewContext";
@@ -26,42 +26,18 @@ import {
   Upload,
   Camera,
   ShieldCheck,
+  FileSpreadsheet,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
-
-interface OrderItem {
-  productId: string;
-  name: string;
-  price: number;
-  quantity: number;
-}
-
-interface Order {
-  _id: string;
-  userId: string;
-  items: OrderItem[];
-  totalPrice: number;
-  shippingInfo: {
-    name: string;
-    phone: string;
-    alternatePhone?: string;
-    address: string;
-    address1?: string;
-    address2?: string;
-    country?: string;
-    state?: string;
-    city?: string;
-    pincode?: string;
-    notes?: string;
-  };
-  status: "Pending" | "Processing" | "Shipped" | "Delivered" | "Cancelled";
-  trackingStage?: number;
-  trackingId?: string;
-  courier?: string;
-  estimatedDeliveryDate?: string;
-  paymentMethod: string;
-  createdAt: string;
-}
+import {
+  getLocalOrders,
+  updateLocalOrderStatus,
+  deleteLocalOrder,
+  downloadOrderExcel,
+  downloadAllOrdersExcel,
+  type Order,
+} from "../lib/orderExport";
 
 interface AdminService {
   id: string;
@@ -101,6 +77,27 @@ const Admin = () => {
   // Orders State
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [orderSearch, setOrderSearch] = useState("");
+  const [orderStatusFilter, setOrderStatusFilter] = useState<string>("all");
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => {
+      if (orderStatusFilter !== "all" && order.status !== orderStatusFilter) {
+        return false;
+      }
+      if (orderSearch.trim()) {
+        const query = orderSearch.toLowerCase();
+        const matchesId = (order._id || "").toLowerCase().includes(query);
+        const matchesTracking = (order.trackingId || "").toLowerCase().includes(query);
+        const matchesName = (order.shippingInfo?.name || "").toLowerCase().includes(query);
+        const matchesPhone = (order.shippingInfo?.phone || "").toLowerCase().includes(query);
+        const matchesCity = (order.shippingInfo?.city || "").toLowerCase().includes(query);
+        const matchesItems = (order.items || []).some((i) => (i.name || "").toLowerCase().includes(query));
+        return matchesId || matchesTracking || matchesName || matchesPhone || matchesCity || matchesItems;
+      }
+      return true;
+    });
+  }, [orders, orderStatusFilter, orderSearch]);
 
   // Products Edit State
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -201,15 +198,47 @@ const Admin = () => {
   };
 
   const fetchAllOrders = async () => {
-    if (!token) return;
     setOrdersLoading(true);
     try {
-      const res = await fetch("/api/orders", {
-        headers: { Authorization: `Bearer ${token}` },
+      const local = getLocalOrders();
+      let serverOrders: Order[] = [];
+
+      if (token) {
+        try {
+          const res = await fetch("/api/orders", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data)) {
+              serverOrders = data;
+            }
+          }
+        } catch (e) {
+          console.warn("Backend orders unreachable, reading local orders:", e);
+        }
+      }
+
+      // Merge unique orders
+      const mergedMap = new Map<string, Order>();
+      serverOrders.forEach((o) => {
+        const key = o.trackingId || o._id;
+        if (key) mergedMap.set(key, o);
       });
-      if (!res.ok) throw new Error("Failed to fetch all orders");
-      const data = await res.json();
-      setOrders(data);
+      local.forEach((o) => {
+        const key = o.trackingId || o._id;
+        if (key) {
+          const existing = mergedMap.get(key);
+          mergedMap.set(key, { ...existing, ...o });
+        } else {
+          mergedMap.set(o._id, o);
+        }
+      });
+
+      const all = Array.from(mergedMap.values()).sort(
+        (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+      );
+      setOrders(all);
     } catch {
       toast.error("Could not load administrative orders.");
     } finally {
@@ -227,24 +256,44 @@ const Admin = () => {
         : newStatus === "Delivered" ? 4 
         : 0;
 
-      const res = await fetch(`/api/orders/${orderId}/status`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status: newStatus, trackingStage: calcStage }),
-      });
-      if (!res.ok) throw new Error("Failed to update status");
-      const updatedOrder = await res.json();
+      // Update local storage
+      updateLocalOrderStatus(orderId, newStatus, calcStage);
 
       setOrders((prev) =>
-        prev.map((o) => (o._id === orderId ? { ...o, ...updatedOrder, status: newStatus as any, trackingStage: calcStage } : o))
+        prev.map((o) =>
+          o._id === orderId || o.trackingId === orderId
+            ? { ...o, status: newStatus as any, trackingStage: calcStage }
+            : o
+        )
       );
+
+      // Attempt backend update
+      if (token) {
+        try {
+          await fetch(`/api/orders/${orderId}/status`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ status: newStatus, trackingStage: calcStage }),
+          });
+        } catch {
+          // Backend optional
+        }
+      }
+
       toast.success(`Tracking stage updated to: ${newStatus}`);
     } catch {
       toast.error("Failed to update order status.");
     }
+  };
+
+  const handleDeleteOrder = (orderId: string) => {
+    if (!window.confirm("Are you sure you want to delete this order record?")) return;
+    deleteLocalOrder(orderId);
+    setOrders((prev) => prev.filter((o) => o._id !== orderId && o.trackingId !== orderId));
+    toast.success("Order removed from administrative records.");
   };
 
   const onAdminSubdomain = isAdminSubdomain();
@@ -954,20 +1003,117 @@ const Admin = () => {
         </div>
       )}
 
-      {/* TAB 4: ORDERS FULFILLMENT */}
+      {/* TAB 4: ORDERS FULFILLMENT & EXCEL EXPORTS */}
       {activeTab === "orders" && (
         <div className="space-y-6">
+          {/* Orders Section Header */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-card rounded-2xl border border-border p-5 shadow-sm">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="p-2 rounded-xl bg-sky-500/10 text-sky-400">
+                  <Package className="h-5 w-5" />
+                </span>
+                <h2 className="font-display text-xl sm:text-2xl font-extrabold tracking-tight">
+                  Customer Orders & Excel Exports
+                </h2>
+              </div>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Live customer orders received. You can update shipment stages and export order invoices to Excel.
+              </p>
+            </div>
+
+            {/* Global Actions & Stats */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-secondary/80 border border-border text-xs font-semibold">
+                <span className="text-muted-foreground">Total:</span>
+                <span className="font-bold text-foreground">{orders.length} Orders</span>
+              </div>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-xs font-semibold text-sky-400">
+                <IndianRupee className="h-3.5 w-3.5" />
+                <span>
+                  ₹{orders.reduce((sum, o) => sum + (o.totalPrice || 0), 0).toLocaleString()}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => downloadAllOrdersExcel(orders)}
+                disabled={orders.length === 0}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/25 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                title="Download Master Excel spreadsheet containing all customer orders"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                <span>Download All Orders (Excel)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Search & Status Filters */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search orders by customer, tracking ID, mobile, city..."
+                value={orderSearch}
+                onChange={(e) => setOrderSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 rounded-xl bg-card border border-border text-xs sm:text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+              />
+              {orderSearch && (
+                <button
+                  type="button"
+                  onClick={() => setOrderSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+              {[
+                { id: "all", label: "All" },
+                { id: "Pending", label: "Pending" },
+                { id: "Processing", label: "Processing" },
+                { id: "Shipped", label: "Shipped" },
+                { id: "Delivered", label: "Delivered" },
+                { id: "Cancelled", label: "Cancelled" },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setOrderStatusFilter(tab.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
+                    orderStatusFilter === tab.id
+                      ? "bg-sky-500 text-white shadow-sm"
+                      : "bg-card border border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {ordersLoading ? (
             <div className="py-20 text-center">
               <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
               <p className="text-muted-foreground">Fetching all orders...</p>
             </div>
-          ) : orders.length === 0 ? (
-            <p className="text-center py-20 text-muted-foreground bg-muted/20 rounded-2xl border border-dashed border-border">
-              No orders found system-wide.
-            </p>
+          ) : filteredOrders.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground bg-muted/20 rounded-2xl border border-dashed border-border p-8">
+              <Package className="h-12 w-12 mx-auto mb-3 opacity-40" />
+              <p className="font-semibold text-foreground text-sm mb-1">
+                {orders.length === 0 ? "No orders found yet." : "No orders match your filter criteria."}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {orders.length === 0
+                  ? "When customers place orders through checkout, they will appear here in real time."
+                  : "Try clearing your search query or choosing another status filter."}
+              </p>
+            </div>
           ) : (
-            orders.map((order, idx) => {
+            filteredOrders.map((order, idx) => {
               const currentStatus = order.status || "Pending";
               const StatusIcon = statusConfig[currentStatus]?.icon || Clock;
               const currentStage = order.trackingStage || (
@@ -980,13 +1126,13 @@ const Admin = () => {
               return (
                 <div
                   key={order._id}
-                  className="bg-card rounded-2xl border border-border overflow-hidden p-6 animate-fade-in-up space-y-5"
-                  style={{ animationDelay: `${0.1 + idx * 0.05}s` }}
+                  className="bg-card rounded-2xl border border-border overflow-hidden p-6 animate-fade-in-up space-y-5 shadow-sm"
+                  style={{ animationDelay: `${0.05 + idx * 0.03}s` }}
                 >
                   {/* Order Header */}
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
                         <span className="text-xs font-bold uppercase text-muted-foreground">Order ID:</span>
                         <span className="font-mono text-xs font-semibold">{order._id}</span>
                         {order.trackingId && (
@@ -995,13 +1141,24 @@ const Admin = () => {
                           </span>
                         )}
                       </div>
-                      <h3 className="font-bold text-lg">{order.shippingInfo.name}</h3>
+                      <h3 className="font-bold text-lg text-foreground">{order.shippingInfo?.name || "Customer"}</h3>
                       <p className="text-xs text-muted-foreground">
-                        Placed on {new Date(order.createdAt).toLocaleString()}
+                        Placed on {order.createdAt ? new Date(order.createdAt).toLocaleString() : "Recent"}
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      {/* Individual Order Excel Download Button */}
+                      <button
+                        type="button"
+                        onClick={() => downloadOrderExcel(order)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/40 text-xs font-bold shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                        title="Download complete details for this order as an Excel spreadsheet"
+                      >
+                        <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
+                        <span>Download Excel</span>
+                      </button>
+
                       <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full ${statusConfig[currentStatus]?.bg || 'bg-muted'}`}>
                         <StatusIcon className={`h-4 w-4 ${statusConfig[currentStatus]?.color || 'text-foreground'}`} />
                         <span className={`text-xs font-bold ${statusConfig[currentStatus]?.color || 'text-foreground'}`}>
@@ -1081,18 +1238,18 @@ const Admin = () => {
                       <div>
                         <p className="text-muted-foreground font-medium">Contact Numbers:</p>
                         <p className="font-semibold text-foreground">
-                          Phone: <a href={`tel:${order.shippingInfo.phone}`} className="text-sky-400 hover:underline">{order.shippingInfo.phone}</a>
+                          Phone: <a href={`tel:${order.shippingInfo?.phone}`} className="text-sky-400 hover:underline">{order.shippingInfo?.phone}</a>
                         </p>
-                        {order.shippingInfo.alternatePhone && (
+                        {order.shippingInfo?.alternatePhone && (
                           <p className="font-semibold text-foreground">
-                            Alt Phone: <a href={`tel:${order.shippingInfo.alternatePhone}`} className="text-sky-400 hover:underline">{order.shippingInfo.alternatePhone}</a>
+                            Alt Phone: <a href={`tel:${order.shippingInfo?.alternatePhone}`} className="text-sky-400 hover:underline">{order.shippingInfo?.alternatePhone}</a>
                           </p>
                         )}
                       </div>
 
                       <div>
                         <p className="text-muted-foreground font-medium">Delivery Location:</p>
-                        {order.shippingInfo.address1 ? (
+                        {order.shippingInfo?.address1 ? (
                           <p className="font-medium text-foreground">
                             {order.shippingInfo.address1}
                             {order.shippingInfo.address2 ? `, ${order.shippingInfo.address2}` : ""}
@@ -1100,29 +1257,75 @@ const Admin = () => {
                             {order.shippingInfo.city ? `${order.shippingInfo.city}, ` : ""}{order.shippingInfo.state}, {order.shippingInfo.country || "India"} - {order.shippingInfo.pincode}
                           </p>
                         ) : (
-                          <p className="font-medium text-foreground">{order.shippingInfo.address}</p>
+                          <p className="font-medium text-foreground">{order.shippingInfo?.address}</p>
                         )}
                       </div>
                     </div>
 
-                    {order.shippingInfo.notes && (
+                    {order.shippingInfo?.notes && (
                       <p className="text-xs italic text-muted-foreground pt-1 border-t border-border/40">
                         Notes: "{order.shippingInfo.notes}"
                       </p>
                     )}
                   </div>
 
-                  {/* Order Footer */}
-                  <div className="flex justify-between items-end border-t border-border pt-4">
-                    <div className="text-xs text-muted-foreground">
-                      {order.items.length} items •{" "}
-                      <span className="font-bold text-foreground">
-                        ₹{order.totalPrice.toLocaleString()}
+                  {/* ORDERED ITEMS SECTION */}
+                  <div className="bg-muted/20 rounded-xl p-4 border border-border/60 space-y-2">
+                    <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-border/40">
+                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <Package className="h-3.5 w-3.5 text-sky-400" />
+                        Ordered Hardware Items ({order.items?.length || 0})
+                      </span>
+                      <span className="text-xs font-bold text-sky-400">
+                        Order Total: ₹{order.totalPrice?.toLocaleString()}
                       </span>
                     </div>
-                    <span className="text-[10px] font-bold text-primary uppercase tracking-widest">
-                      {order.paymentMethod || "Cash on Delivery"}
-                    </span>
+
+                    <div className="space-y-1.5">
+                      {order.items && order.items.length > 0 ? (
+                        order.items.map((it, itemIdx) => (
+                          <div
+                            key={itemIdx}
+                            className="p-2 rounded-lg bg-card/60 border border-border/40 flex items-center justify-between gap-3 text-xs"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-foreground truncate">{it.name}</p>
+                              <p className="text-[11px] text-muted-foreground">
+                                Qty: <span className="font-bold text-foreground">{it.quantity || 1}</span> × ₹{(it.price || 0).toLocaleString()}
+                              </p>
+                            </div>
+                            <span className="font-mono font-bold text-foreground shrink-0">
+                              ₹{((it.price || 0) * (it.quantity || 1)).toLocaleString()}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">No individual item details specified.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Order Footer */}
+                  <div className="flex flex-wrap justify-between items-center border-t border-border pt-4 gap-2">
+                    <div className="text-xs text-muted-foreground">
+                      {order.items?.length || 0} items •{" "}
+                      <span className="font-bold text-foreground">
+                        ₹{order.totalPrice?.toLocaleString()}
+                      </span>{" "}
+                      via <span className="font-semibold text-primary uppercase text-[10px] tracking-wider">{order.paymentMethod || "COD"}</span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteOrder(order._id)}
+                        className="text-xs text-muted-foreground hover:text-destructive transition-colors flex items-center gap-1 cursor-pointer"
+                        title="Delete order"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span>Delete Record</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               );

@@ -1,43 +1,11 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { motion } from "framer-motion";
-import { Package, Clock, CheckCircle2, Truck, XCircle, ChevronRight, ShoppingBag } from "lucide-react";
+import { Package, Clock, CheckCircle2, Truck, XCircle, ChevronRight, ShoppingBag, FileSpreadsheet } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { toast } from "sonner";
-
-interface OrderItem {
-  productId: string;
-  name: string;
-  price: number;
-  quantity: number;
-}
-
-interface Order {
-  _id: string;
-  items: OrderItem[];
-  totalPrice: number;
-  status: "Pending" | "Processing" | "Shipped" | "Delivered" | "Cancelled";
-  createdAt: string;
-  shippingInfo?: {
-    name: string;
-    phone: string;
-    alternatePhone?: string;
-    address: string;
-    address1?: string;
-    address2?: string;
-    country?: string;
-    state?: string;
-    city?: string;
-    pincode?: string;
-    notes?: string;
-  };
-  trackingStage?: number;
-  paymentMethod?: string;
-  trackingId?: string;
-  courier?: string;
-  estimatedDeliveryDate?: string;
-}
+import { getLocalOrders, downloadOrderExcel, type Order } from "../lib/orderExport";
 
 const statusConfig = {
   Pending: { icon: Clock, color: "text-amber-500", bg: "bg-amber-500/10", step: 1 },
@@ -55,20 +23,51 @@ const trackingSteps = [
 ];
 
 const Orders = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchOrders = async () => {
-      if (!token) return;
       try {
-        const res = await fetch("/api/orders/my-orders", {
-          headers: { "Authorization": `Bearer ${token}` }
+        const local = getLocalOrders();
+        let serverOrders: Order[] = [];
+
+        if (token) {
+          try {
+            const res = await fetch("/api/orders/my-orders", {
+              headers: { "Authorization": `Bearer ${token}` }
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (Array.isArray(data)) serverOrders = data;
+            }
+          } catch (e) {
+            console.warn("Server orders unreachable, reading local orders:", e);
+          }
+        }
+
+        const mergedMap = new Map<string, Order>();
+        serverOrders.forEach((o) => {
+          const key = o.trackingId || o._id;
+          if (key) mergedMap.set(key, o);
         });
-        if (!res.ok) throw new Error("Failed to fetch orders");
-        const data = await res.json();
-        setOrders(data);
+
+        // Filter local orders relevant to this user or all if guest/admin
+        local.forEach((o) => {
+          const key = o.trackingId || o._id;
+          if (key && !mergedMap.has(key)) {
+            // Include order if user matches or email matches or guest
+            if (!user || !o.userId || o.userId === "guest" || o.userId === user.id || o.customerEmail === user.email) {
+              mergedMap.set(key, o);
+            }
+          }
+        });
+
+        const all = Array.from(mergedMap.values()).sort(
+          (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+        );
+        setOrders(all);
       } catch (err) {
         console.error(err);
         toast.error("Could not load your order history.");
@@ -78,7 +77,7 @@ const Orders = () => {
     };
 
     fetchOrders();
-  }, [token]);
+  }, [token, user]);
 
   if (loading) {
     return (
@@ -214,11 +213,23 @@ const Orders = () => {
                           <p className="font-display text-3xl font-black text-sky-400">₹{order.totalPrice.toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground mt-1">Courier: {order.courier || "SpeedPost Express"}</p>
                        </div>
-                       <Button variant="outline" size="sm" className="mt-6 md:mt-0 w-full md:w-auto h-10 border-border hover:bg-muted font-bold rounded-xl" asChild>
-                          <Link to={`/product/${order.items[0]?.productId || ''}`}>
-                             View Product <ChevronRight className="h-4 w-4 ml-1" />
-                          </Link>
-                       </Button>
+                       <div className="mt-6 md:mt-0 flex flex-wrap items-center gap-2 w-full md:w-auto">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => downloadOrderExcel(order)}
+                            className="h-10 border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 font-bold rounded-xl flex items-center gap-1.5"
+                            title="Download invoice in Excel format"
+                          >
+                            <FileSpreadsheet className="h-4 w-4" /> Download Invoice (Excel)
+                          </Button>
+                          <Button variant="outline" size="sm" className="h-10 border-border hover:bg-muted font-bold rounded-xl" asChild>
+                             <Link to={`/product/${order.items[0]?.productId || ''}`}>
+                                View Product <ChevronRight className="h-4 w-4 ml-1" />
+                             </Link>
+                          </Button>
+                       </div>
                     </div>
                   </div>
                 </div>
