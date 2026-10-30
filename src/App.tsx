@@ -108,6 +108,9 @@ const App = () => {
   const isLocalDev =
     typeof window !== "undefined" &&
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+  const isDirectAdmin =
+    typeof window !== "undefined" &&
+    (window.location.search.includes("direct=1") || window.location.search.includes("mode=direct"));
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -141,7 +144,7 @@ const App = () => {
                             {/* In local dev keep /admin directly accessible, in production redirect to admin.gzones.in */}
                             <Route
                               path="/admin"
-                              element={isLocalDev ? <Admin /> : <AdminRedirect />}
+                              element={isLocalDev || isDirectAdmin ? <Admin /> : <AdminRedirect />}
                             />
                             <Route
                               path="/admin/login"

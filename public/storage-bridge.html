@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>GadgetZone Cross-Domain Storage Bridge</title>
+</head>
+<body>
+<script>
+(function() {
+  const STORAGE_KEY = "GadgetZone_all_orders";
+
+  function isAllowedOrigin(origin) {
+    if (!origin) return false;
+    return (
+      origin.includes("gzones.in") ||
+      origin.includes("localhost") ||
+      origin.includes("127.0.0.1")
+    );
+  }
+
+  window.addEventListener("message", function(event) {
+    if (!isAllowedOrigin(event.origin)) return;
+
+    const msg = event.data;
+    if (!msg || typeof msg !== "object") return;
+
+    switch (msg.type) {
+      case "GZ_GET_LOCAL_ORDERS": {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY) || "[]";
+          event.source.postMessage(
+            { type: "GZ_LOCAL_ORDERS_DATA", payload: raw },
+            event.origin
+          );
+        } catch (e) {
+          event.source.postMessage(
+            { type: "GZ_LOCAL_ORDERS_DATA", payload: "[]" },
+            event.origin
+          );
+        }
+        break;
+      }
+
+      case "GZ_SAVE_LOCAL_ORDER": {
+        try {
+          if (msg.order) {
+            const raw = localStorage.getItem(STORAGE_KEY) || "[]";
+            const orders = JSON.parse(raw);
+            const idx = orders.findIndex(function(o) {
+              return (
+                (msg.order._id && o._id === msg.order._id) ||
+                (msg.order.orderId && o.orderId === msg.order.orderId) ||
+                (msg.order.trackingId && o.trackingId === msg.order.trackingId)
+              );
+            });
+            if (idx >= 0) {
+              orders[idx] = Object.assign({}, orders[idx], msg.order);
+            } else {
+              orders.unshift(msg.order);
+            }
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
+            event.source.postMessage(
+              { type: "GZ_SAVE_ORDER_ACK", success: true },
+              event.origin
+            );
+          }
+        } catch (e) {}
+        break;
+      }
+
+      case "GZ_UPDATE_STATUS": {
+        try {
+          if (msg.orderId && msg.status) {
+            const raw = localStorage.getItem(STORAGE_KEY) || "[]";
+            const orders = JSON.parse(raw);
+            const updated = orders.map(function(o) {
+              if (
+                o._id === msg.orderId ||
+                o.orderId === msg.orderId ||
+                o.trackingId === msg.orderId
+              ) {
+                return Object.assign({}, o, {
+                  orderStatus: msg.status,
+                  status: msg.status,
+                  trackingStage:
+                    msg.trackingStage !== undefined
+                      ? msg.trackingStage
+                      : o.trackingStage,
+                });
+              }
+              return o;
+            });
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+            event.source.postMessage(
+              { type: "GZ_UPDATE_STATUS_ACK", success: true },
+              event.origin
+            );
+          }
+        } catch (e) {}
+        break;
+      }
+    }
+  });
+
+  // Notify parent if embedded
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({ type: "GZ_BRIDGE_READY" }, "*");
+  }
+})();
+</script>
+</body>
+</html>
+

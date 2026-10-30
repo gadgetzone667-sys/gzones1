@@ -66,6 +66,22 @@ export interface Order {
 }
 
 const ORDERS_STORAGE_KEY = "GadgetZone_all_orders";
+const SHARED_COOKIE_KEY = "gz_shared_orders_data";
+
+// Shared cookie helpers for cross-subdomain access (gzones.in <-> admin.gzones.in)
+function getSharedCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp("(?:^|;\\s*)" + name + "=([^;]*)"));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function setSharedCookie(name: string, value: string, days = 30): void {
+  if (typeof document === "undefined") return;
+  const expires = new Date(Date.now() + days * 864e5).toUTCString();
+  const hostname = window.location.hostname.toLowerCase();
+  const domainPart = hostname.includes("gzones.in") ? "; domain=.gzones.in" : "";
+  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/${domainPart}; SameSite=Lax`;
+}
 
 // Helper to escape values for CSV / Excel
 function escapeCsv(value: any): string {
@@ -74,19 +90,44 @@ function escapeCsv(value: any): string {
   return `"${str}"`;
 }
 
-// Retrieve local orders
+// Retrieve local orders (combines localStorage and cross-subdomain shared cookie)
 export function getLocalOrders(): Order[] {
+  const mergedMap = new Map<string, Order>();
+
   try {
     const raw = localStorage.getItem(ORDERS_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((o: Order) => {
+          const key = o.orderId || o.trackingId || o._id;
+          if (key) mergedMap.set(key, o);
+        });
+      }
+    }
+  } catch {}
+
+  // Read cross-subdomain cookie if available
+  try {
+    const cookieRaw = getSharedCookie(SHARED_COOKIE_KEY);
+    if (cookieRaw) {
+      const parsedCookie = JSON.parse(cookieRaw);
+      if (Array.isArray(parsedCookie)) {
+        parsedCookie.forEach((o: Order) => {
+          const key = o.orderId || o.trackingId || o._id;
+          if (key && !mergedMap.has(key)) {
+            mergedMap.set(key, o);
+          }
+        });
+      }
+    }
+  } catch {}
+
+  const orders = Array.from(mergedMap.values());
+  return orders;
 }
 
-// Save or update an order in local storage
+// Save or update an order in local storage and cross-subdomain cookie
 export function saveLocalOrder(order: Order): void {
   try {
     const current = getLocalOrders();
@@ -104,9 +145,100 @@ export function saveLocalOrder(order: Order): void {
     }
 
     localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(current));
+
+    // Save recent orders to domain-level cookie so admin.gzones.in instantly receives it
+    try {
+      setSharedCookie(SHARED_COOKIE_KEY, JSON.stringify(current.slice(0, 10)));
+    } catch {}
+
+    // Post to storage bridge if available
+    const iframe = document.getElementById("gz-storage-bridge-iframe") as HTMLIFrameElement | null;
+    if (iframe?.contentWindow) {
+      iframe.contentWindow.postMessage({ type: "GZ_SAVE_LOCAL_ORDER", order }, "*");
+    }
   } catch (err) {
     console.warn("Failed to persist order in localStorage:", err);
   }
+}
+
+// Cross-domain storage bridge initiator for admin subdomain
+export function initCrossDomainOrderBridge(callback?: (orders: Order[]) => void): () => void {
+  if (typeof window === "undefined") return () => {};
+
+  const hostname = window.location.hostname.toLowerCase();
+  const targetOrigin =
+    hostname.includes("localhost") || hostname === "127.0.0.1"
+      ? window.location.origin
+      : "https://gzones.in";
+
+  const bridgeUrl = `${targetOrigin}/storage-bridge.html`;
+
+  let iframe = document.getElementById("gz-storage-bridge-iframe") as HTMLIFrameElement | null;
+  if (!iframe) {
+    iframe = document.createElement("iframe");
+    iframe.id = "gz-storage-bridge-iframe";
+    iframe.src = bridgeUrl;
+    iframe.style.position = "absolute";
+    iframe.style.width = "1px";
+    iframe.style.height = "1px";
+    iframe.style.left = "-9999px";
+    iframe.style.top = "-9999px";
+    iframe.style.opacity = "0";
+    iframe.style.pointerEvents = "none";
+    document.body.appendChild(iframe);
+  }
+
+  const handleMessage = (event: MessageEvent) => {
+    if (
+      !event.origin.includes("gzones.in") &&
+      !event.origin.includes("localhost") &&
+      !event.origin.includes("127.0.0.1")
+    ) {
+      return;
+    }
+
+    if (event.data?.type === "GZ_BRIDGE_READY") {
+      iframe?.contentWindow?.postMessage({ type: "GZ_GET_LOCAL_ORDERS" }, "*");
+    } else if (
+      event.data?.type === "GZ_LOCAL_ORDERS_DATA" &&
+      typeof event.data.payload === "string"
+    ) {
+      try {
+        const received = JSON.parse(event.data.payload);
+        if (Array.isArray(received) && received.length > 0) {
+          const current = getLocalOrders();
+          const map = new Map<string, Order>();
+          received.forEach((o: Order) => {
+            const key = o.orderId || o.trackingId || o._id;
+            if (key) map.set(key, o);
+          });
+          current.forEach((o: Order) => {
+            const key = o.orderId || o.trackingId || o._id;
+            if (key && !map.has(key)) map.set(key, o);
+          });
+          const merged = Array.from(map.values()).sort(
+            (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+          );
+          localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(merged));
+          if (callback) callback(merged);
+        }
+      } catch (err) {
+        console.warn("Error parsing bridged orders:", err);
+      }
+    }
+  };
+
+  window.addEventListener("message", handleMessage);
+
+  if (iframe.contentWindow) {
+    try {
+      iframe.contentWindow.postMessage({ type: "GZ_GET_LOCAL_ORDERS" }, "*");
+    } catch {}
+  }
+
+  return () => {
+    window.removeEventListener("message", handleMessage);
+  };
 }
 
 // Update order status in local storage

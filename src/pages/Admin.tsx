@@ -48,6 +48,7 @@ import {
   downloadOrderExcel,
   downloadAllOrdersExcel,
   printOrderInvoice,
+  initCrossDomainOrderBridge,
   type Order,
 } from "../lib/orderExport";
 
@@ -336,11 +337,14 @@ const Admin = () => {
             headers: { Authorization: `Bearer ${token}` },
           });
           if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data)) {
-              serverOrders = data;
-            } else if (data?.orders && Array.isArray(data.orders)) {
-              serverOrders = data.orders;
+            const contentType = res.headers.get("content-type") || "";
+            if (contentType.includes("application/json")) {
+              const data = await res.json();
+              if (Array.isArray(data)) {
+                serverOrders = data;
+              } else if (data?.orders && Array.isArray(data.orders)) {
+                serverOrders = data.orders;
+              }
             }
           }
         } catch (e) {
@@ -381,6 +385,36 @@ const Admin = () => {
       if (showLoading) setOrdersLoading(false);
     }
   }, [token]);
+
+  // Cross-domain bridge to automatically receive orders placed on https://gzones.in
+  useEffect(() => {
+    const cleanup = initCrossDomainOrderBridge((bridgedOrders) => {
+      if (bridgedOrders.length > 0) {
+        setOrders((prev) => {
+          const map = new Map<string, Order>();
+          prev.forEach((o) => {
+            const key = o.orderId || o.trackingId || o._id;
+            if (key) map.set(key, o);
+          });
+          bridgedOrders.forEach((o) => {
+            const key = o.orderId || o.trackingId || o._id;
+            if (key) {
+              map.set(key, { ...map.get(key), ...o });
+            } else {
+              map.set(o._id, o);
+            }
+          });
+          return Array.from(map.values()).sort(
+            (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+          );
+        });
+      }
+    });
+
+    return () => {
+      cleanup();
+    };
+  }, []);
 
   // Section 11: Real-Time Order Updates (polls every 15s when active on Orders tab)
   useEffect(() => {

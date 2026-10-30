@@ -45,7 +45,7 @@ export const AdminRedirect = ({ loginOnly }: AdminRedirectProps) => {
           <span>Redirecting to dedicated administrator domain...</span>
         </div>
 
-        <div className="pt-2">
+        <div className="pt-2 space-y-2">
           <Button
             asChild
             className="w-full h-10 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white gap-2"
@@ -53,6 +53,17 @@ export const AdminRedirect = ({ loginOnly }: AdminRedirectProps) => {
             <a href={targetUrl}>
               <span>Open admin.gzones.in immediately</span>
               <ArrowRight className="h-3.5 w-3.5" />
+            </a>
+          </Button>
+
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="w-full h-8 text-[11px] text-slate-400 hover:text-white"
+          >
+            <a href="/admin?direct=1">
+              Stay on gzones.in/admin (Direct Management)
             </a>
           </Button>
         </div>
