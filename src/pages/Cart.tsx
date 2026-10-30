@@ -3,8 +3,8 @@ import { useCart } from "../context/CartContext";
 import { useProducts } from "../context/ProductContext";
 import { useAuth } from "../context/AuthContext";
 import { motion } from "framer-motion";
-import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, Sparkles, PlusCircle, RefreshCw, Lock } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, Sparkles, RefreshCw, PlusCircle } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import ProductCard from "../components/ProductCard";
 
@@ -13,6 +13,16 @@ const Cart = () => {
   const { items, removeItem, updateQuantity, totalPrice, clearCart, addItem } = useCart();
   const { products } = useProducts();
   const [shuffleIndex, setShuffleIndex] = useState(0);
+  const navigate = useNavigate();
+
+  const handleProceedToCheckout = () => {
+    if (!isLoggedIn || !user) {
+      toast.info("Please sign in to proceed with checkout.");
+      navigate("/login?redirect=/checkout");
+      return;
+    }
+    navigate("/checkout");
+  };
 
   // Dynamic recommendations algorithm based on current cart items & shuffle seed
   const suggestedProducts = useMemo(() => {
@@ -45,40 +55,6 @@ const Cart = () => {
     const rotated = [...ranked.slice(offset), ...ranked.slice(0, offset)];
     return rotated.slice(0, 4).map(r => r.product);
   }, [items, products, shuffleIndex]);
-
-  if (!isLoggedIn || !user) {
-    return (
-      <div className="min-h-screen min-h-dvh pt-28 pb-16 flex items-center justify-center px-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="max-w-md w-full bg-card border border-border/80 rounded-3xl p-8 text-center shadow-2xl relative overflow-hidden"
-        >
-          <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-4 text-primary">
-            <Lock className="h-8 w-8" />
-          </div>
-          <h2 className="font-display text-2xl font-bold mb-2">Sign In Required</h2>
-          <p className="text-sm text-muted-foreground mb-6">
-            Please log in with your customer account to view items in your cart, manage saved builds, and proceed to checkout.
-          </p>
-          <div className="flex flex-col gap-3">
-            <Link
-              to="/login?redirect=/cart"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 text-white font-bold text-sm shadow-lg shadow-sky-500/25 hover:shadow-sky-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all"
-            >
-              Sign In to View Cart <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              to="/products"
-              className="inline-flex items-center justify-center px-6 py-3 rounded-xl border border-border bg-muted/20 text-muted-foreground hover:text-foreground text-xs font-semibold hover:bg-muted/40 transition-colors"
-            >
-              Continue Browsing Products
-            </Link>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
 
   if (items.length === 0) {
     return (
@@ -131,7 +107,11 @@ const Cart = () => {
                 className="bg-card rounded-xl border border-border p-5 flex flex-wrap sm:flex-nowrap items-center gap-4 sm:gap-5 shadow-sm"
               >
                 <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg bg-secondary flex items-center justify-center shrink-0 overflow-hidden border border-border/50">
-                  <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">{item.type}</span>
+                  {item.image ? (
+                    <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">{item.type}</span>
+                  )}
                 </div>
                 <div className="flex-1 min-w-[150px]">
                   <h3 className="font-display font-semibold text-sm truncate">{item.name}</h3>
@@ -184,12 +164,19 @@ const Cart = () => {
                   </span>
                 </div>
               </div>
-              <Link
-                to="/checkout"
-                className="w-full px-6 py-3 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 text-white font-bold text-sm shadow-md hover:shadow-sky-500/30 hover:scale-[1.02] transition-all mb-3 inline-flex items-center justify-center cursor-pointer"
+              <button
+                type="button"
+                onClick={handleProceedToCheckout}
+                className="w-full px-6 py-3 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 text-white font-bold text-sm shadow-md hover:shadow-sky-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all mb-2 inline-flex items-center justify-center gap-2 cursor-pointer"
               >
-                Proceed to Checkout
-              </Link>
+                <span>Proceed to Checkout</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+              {!isLoggedIn && (
+                <p className="text-[11px] text-muted-foreground text-center mb-3">
+                  You will be prompted to sign in before finalizing your order.
+                </p>
+              )}
               <button
                 onClick={() => { clearCart(); toast.info("Cart cleared"); }}
                 className="w-full px-6 py-3 rounded-xl border border-border text-sm font-medium hover:bg-secondary transition-colors"

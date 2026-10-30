@@ -1,10 +1,9 @@
 import { motion } from "framer-motion";
 import { ShoppingCart, ExternalLink, HeartOff, Trash2 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useWishlist } from "../context/WishlistContext";
 import { useProducts } from "../context/ProductContext";
 import { useCart } from "../context/CartContext";
-import { useAuth } from "../context/AuthContext";
 import { Button } from "../components/ui/button";
 import { toast } from "sonner";
 
@@ -12,8 +11,6 @@ const Wishlist = () => {
   const { wishlistItems, toggleWishlist, clearWishlist } = useWishlist();
   const { products, isLoading } = useProducts();
   const { addItem } = useCart();
-  const { user } = useAuth();
-  const navigate = useNavigate();
 
   const savedProducts = products.filter(p => wishlistItems.includes(p.id));
 
@@ -27,12 +24,7 @@ const Wishlist = () => {
   }
 
   const handleAddToCart = (product: typeof products[0]) => {
-    if (!user) {
-      toast.info("Please sign in before adding items to your cart.");
-      navigate("/login?redirect=/cart");
-      return;
-    }
-    addItem({ id: product.id, name: product.name, price: product.price, type: "product" });
+    addItem({ id: product.id, name: product.name, price: product.price, type: "product", image: product.image });
     toast.success(`${product.name} added to cart!`);
     toggleWishlist(product.id);
   };

@@ -399,7 +399,7 @@ const Checkout = () => {
     e.preventDefault();
     if (!user) {
       toast.error("Please login to place an order.");
-      navigate("/login");
+      navigate("/login?redirect=/checkout");
       return;
     }
 
@@ -566,7 +566,7 @@ const Checkout = () => {
         <p className="text-muted-foreground mb-8 text-center max-w-sm">
           Please log in to your account to review your cart and complete checkout.
         </p>
-        <Link to="/login?redirect=/cart">
+        <Link to="/login?redirect=/checkout">
           <Button size="lg" className="rounded-xl px-8 shadow-md">
             Sign In to Continue
           </Button>

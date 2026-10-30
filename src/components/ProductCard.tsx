@@ -1,25 +1,17 @@
 import { Star, ShoppingCart, Heart } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import type { Product } from "../data/products";
 import { useCart } from "../context/CartContext";
-import { useAuth } from "../context/AuthContext";
 import { useWishlist } from "../context/WishlistContext";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 
 const ProductCard = ({ product }: { product: Product }) => {
   const { addItem } = useCart();
-  const { user } = useAuth();
   const { toggleWishlist, isInWishlist } = useWishlist();
-  const navigate = useNavigate();
 
   const handleAdd = () => {
-    if (!user) {
-      toast.info("Please sign in before adding items to your cart.");
-      navigate("/login?redirect=/cart");
-      return;
-    }
-    addItem({ id: product.id, name: product.name, price: product.price, type: "product" });
+    addItem({ id: product.id, name: product.name, price: product.price, type: "product", image: product.image });
     toast.success(`${product.name} added to cart`);
   };
 
