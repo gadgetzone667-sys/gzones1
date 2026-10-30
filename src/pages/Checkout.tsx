@@ -6,10 +6,10 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import { Link, useNavigate } from "react-router-dom";
-import { CheckCircle2, Package, ArrowLeft, CreditCard, ShoppingBag, Loader2, Truck, Globe, MapPin, Building, UserCheck, FileSpreadsheet } from "lucide-react";
+import { CheckCircle2, Package, ArrowLeft, CreditCard, ShoppingBag, Loader2, Truck, Globe, MapPin, Building, UserCheck, FileSpreadsheet, Printer } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { saveLocalOrder, downloadOrderExcel, type Order } from "../lib/orderExport";
+import { saveLocalOrder, downloadOrderExcel, printOrderInvoice, type Order } from "../lib/orderExport";
 
 const COUNTRIES = [
   "India",
@@ -272,6 +272,7 @@ const Checkout = () => {
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
+    email: user?.email || "",
     phone: "",
     alternatePhone: "",
     country: "India",
@@ -324,6 +325,7 @@ const Checkout = () => {
             ...prev,
             firstName: prev.firstName || parsed.firstName || autoFirst,
             lastName: prev.lastName || parsed.lastName || autoLast,
+            email: prev.email || parsed.email || user.email || "",
             phone: prev.phone || parsed.phone || "",
             alternatePhone: prev.alternatePhone || parsed.alternatePhone || "",
             country: parsed.country || prev.country,
@@ -341,7 +343,8 @@ const Checkout = () => {
       setForm(prev => ({
         ...prev,
         firstName: prev.firstName || autoFirst,
-        lastName: prev.lastName || autoLast
+        lastName: prev.lastName || autoLast,
+        email: prev.email || user.email || ""
       }));
     }
   }, [user]);
@@ -406,7 +409,7 @@ const Checkout = () => {
 
     const effectiveCity = getEffectiveCity();
 
-    if (!form.firstName.trim() || !form.phone.trim() || !form.address1.trim() || !form.pincode.trim() || !form.state.trim() || !effectiveCity) {
+    if (!form.firstName.trim() || !form.phone.trim() || !form.email.trim() || !form.address1.trim() || !form.pincode.trim() || !form.state.trim() || !effectiveCity) {
       toast.error("Please fill in all required contact and shipping address fields.");
       return;
     }
@@ -414,9 +417,13 @@ const Checkout = () => {
     setLoading(true);
     try {
       const finalPrice = totalPrice;
+      const dateTag = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      const generatedOrderId = `GZ-${dateTag}-${randomSuffix}`;
       const trackingId = `TRK-GZ-${Math.floor(100000 + Math.random() * 900000)}`;
       const selectedPaymentText = "Cash on Delivery (COD)";
       const fullName = `${form.firstName.trim()} ${form.lastName.trim()}`.trim();
+      const customerEmail = form.email.trim();
 
       const formattedAddress = `${form.address1.trim()}${form.address2.trim() ? `, ${form.address2.trim()}` : ""}, ${effectiveCity}, ${form.state}, ${form.country} - ${form.pincode.trim()}`;
 
@@ -425,29 +432,50 @@ const Checkout = () => {
         localStorage.setItem("GadgetZone_shipping_pref", JSON.stringify({
           firstName: form.firstName,
           lastName: form.lastName,
+          email: customerEmail,
           phone: form.phone,
           alternatePhone: form.alternatePhone,
           country: form.country,
           state: form.state,
           city: effectiveCity,
+          customCity: form.customCity,
           address1: form.address1,
           address2: form.address2,
           pincode: form.pincode
         }));
       } catch {}
 
-      const localId = `ORD-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
-
       const orderData: Order = {
-        _id: localId,
+        _id: generatedOrderId,
+        orderId: generatedOrderId,
         userId: user?.id || "guest",
-        customerEmail: user?.email || "",
+        customer: {
+          name: fullName,
+          email: customerEmail,
+          phone: form.phone.trim(),
+          alternatePhone: form.alternatePhone.trim()
+        },
+        shippingAddress: {
+          address: formattedAddress,
+          address1: form.address1.trim(),
+          address2: form.address2.trim(),
+          city: effectiveCity,
+          state: form.state,
+          country: form.country,
+          pincode: form.pincode.trim(),
+          notes: form.notes
+        },
         items: items.map(item => ({
           productId: item.id,
           name: item.name,
+          image: item.image || "",
           price: item.price,
-          quantity: item.quantity
+          quantity: item.quantity,
+          subtotal: item.price * item.quantity
         })),
+        subtotal: finalPrice,
+        deliveryCharges: 0,
+        grandTotal: finalPrice,
         totalPrice: finalPrice,
         shippingInfo: {
           name: fullName,
@@ -465,56 +493,46 @@ const Checkout = () => {
           notes: form.notes
         },
         paymentMethod: selectedPaymentText,
-        trackingId,
-        trackingStage: 1, // Step 1: Order Placed
+        paymentStatus: "Pending",
+        orderStatus: "Pending",
         status: "Pending",
+        trackingStage: 1, // Step 1: Order Placed
+        trackingId,
         courier: "SpeedPost Express",
         estimatedDeliveryDate: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
         createdAt: new Date().toISOString(),
       };
 
-      // Ensure the order data is always sent to the Admin Dashboard
+      // Ensure the order data is always saved for instant Admin Dashboard access
       saveLocalOrder(orderData);
 
+      // Submit order directly to MongoDB through backend API
+      let finalOrder = orderData;
       try {
         const res = await fetch("/api/orders", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
+            ...(token ? { "Authorization": `Bearer ${token}` } : {})
           },
           body: JSON.stringify(orderData)
         });
+
         if (res.ok) {
-          const serverCreated = await res.json();
-          if (serverCreated?._id) {
-            orderData._id = serverCreated._id;
-            saveLocalOrder(orderData);
+          const result = await res.json();
+          if (result?.order) {
+            finalOrder = result.order;
+            saveLocalOrder(finalOrder);
           }
         }
       } catch (err) {
         console.warn("Backend order sync notice:", err);
       }
 
-      // Format structured WhatsApp message to Seller Mobile (+91 9345600128)
-      const itemsListText = items.map(i => `• ${i.name} (x${i.quantity}) - ₹${(i.price * i.quantity).toLocaleString()}`).join('\n');
-      const waText = `🛒 *NEW ORDER RECEIVED - GADGET ZONE*\n\n🆔 *Tracking ID:* #${trackingId}\n👤 *Customer:* ${fullName}\n📞 *Mobile:* ${form.phone}${form.alternatePhone ? `\n📱 *Alt Mobile:* ${form.alternatePhone}` : ""}\n📍 *Address 1:* ${form.address1}${form.address2 ? `\n📍 *Address 2:* ${form.address2}` : ""}\n🏙️ *City:* ${effectiveCity}\n🗺️ *State:* ${form.state}\n🌍 *Country:* ${form.country}\n📮 *Pincode:* ${form.pincode}\n💳 *Payment Method:* ${selectedPaymentText}\n💰 *Total Amount:* ₹${finalPrice.toLocaleString()}\n\n📦 *Ordered Items:*\n${itemsListText}\n\n📝 *Notes:* ${form.notes || 'None'}`;
-      
-      const emailBody = `New Order Placed:\n\nTracking ID: #${trackingId}\nCustomer Name: ${fullName}\nPhone: ${form.phone}\nAlternate Phone: ${form.alternatePhone || 'None'}\nAddress 1: ${form.address1}\nAddress 2: ${form.address2 || 'None'}\nCity: ${effectiveCity}\nState: ${form.state}\nCountry: ${form.country}\nPincode: ${form.pincode}\nPayment Method: ${selectedPaymentText}\nTotal Amount: ₹${finalPrice.toLocaleString()}\n\nItems:\n${itemsListText}\n\nNotes:\n${form.notes || 'None'}`;
-
-      const waUrl = `https://wa.me/919345600128?text=${encodeURIComponent(waText)}`;
-      const mailtoUrl = `mailto:gadgetzone667@gmail.com?subject=${encodeURIComponent("New Order #" + trackingId)}&body=${encodeURIComponent(emailBody)}`;
-
-      // Open WhatsApp & Mailto to notify seller directly
-      window.open(waUrl, "_blank");
-      setTimeout(() => {
-        window.location.href = mailtoUrl;
-      }, 600);
-
-      setOrderDetails({ ...orderData, items: [...items], customerName: fullName, effectiveCity });
+      setOrderDetails(finalOrder);
       setPlaced(true);
       clearCart();
-      toast.success(`Order placed successfully! Tracking ID: ${trackingId}`);
+      toast.success(`Order placed successfully! Order ID: #${finalOrder.orderId || finalOrder._id}`);
     } catch (err: any) {
       console.error("Checkout error:", err);
       toast.error(err.message || "An error occurred while placing your order.");
@@ -524,6 +542,11 @@ const Checkout = () => {
   };
 
   if (placed) {
+    const displayId = orderDetails?.orderId || orderDetails?._id || "Confirmed";
+    const customerName = orderDetails?.customer?.name || orderDetails?.shippingInfo?.name || orderDetails?.customerName || form.firstName;
+    const destCity = orderDetails?.shippingAddress?.city || orderDetails?.shippingInfo?.city || orderDetails?.effectiveCity || form.city;
+    const destState = orderDetails?.shippingAddress?.state || orderDetails?.shippingInfo?.state || form.state;
+
     return (
       <div className="min-h-screen pt-24 pb-16 flex flex-col items-center justify-center bg-background px-4">
         <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-card p-8 sm:p-10 rounded-3xl border border-border shadow-2xl flex flex-col items-center text-center max-w-lg w-full relative overflow-hidden">
@@ -533,13 +556,17 @@ const Checkout = () => {
           </div>
           <h1 className="font-display text-3xl font-extrabold mb-2">Order Confirmed!</h1>
           <p className="text-muted-foreground text-sm mb-6 leading-relaxed relative z-10">
-            Thank you, <span className="text-foreground font-bold">{orderDetails?.customerName || form.firstName}</span>! Your order has been placed successfully.
+            Thank you, <span className="text-foreground font-bold">{customerName}</span>! Your order has been placed and saved in the system.
           </p>
 
           <div className="w-full bg-muted/40 rounded-2xl p-5 mb-6 border border-border text-left space-y-3">
              <div className="flex justify-between items-center pb-2 border-b border-border">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Order ID</span>
+                <span className="font-mono text-xs font-bold text-sky-400">#{displayId}</span>
+             </div>
+             <div className="flex justify-between items-center pb-2 border-b border-border">
                 <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Tracking Number</span>
-                <span className="font-mono text-xs font-bold text-sky-400">{orderDetails?.trackingId}</span>
+                <span className="font-mono text-xs font-semibold text-foreground">{orderDetails?.trackingId}</span>
              </div>
              <div className="flex justify-between items-center pb-2 border-b border-border">
                 <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Payment Method</span>
@@ -548,12 +575,12 @@ const Checkout = () => {
              <div className="flex justify-between items-center pb-2 border-b border-border">
                 <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Delivery Destination</span>
                 <span className="text-xs font-medium text-foreground truncate max-w-[220px]">
-                  {orderDetails?.effectiveCity || form.city}, {form.state}
+                  {destCity}, {destState}
                 </span>
              </div>
              <div className="flex justify-between items-center">
                 <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Estimated Delivery</span>
-                <span className="text-xs font-semibold text-emerald-400">{orderDetails?.estimatedDeliveryDate}</span>
+                <span className="text-xs font-semibold text-emerald-400">{orderDetails?.estimatedDeliveryDate || "3-5 Business Days"}</span>
              </div>
           </div>
 
@@ -571,15 +598,26 @@ const Checkout = () => {
           </div>
 
           {orderDetails && (
-            <Button
-              type="button"
-              variant="secondary"
-              size="lg"
-              onClick={() => downloadOrderExcel(orderDetails as Order)}
-              className="w-full mt-3 h-11 font-bold rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
-            >
-              <FileSpreadsheet className="h-4 w-4 mr-2" /> Download Order Invoice (.csv / Excel)
-            </Button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full mt-3">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => printOrderInvoice(orderDetails as Order)}
+                className="w-full h-10 font-bold rounded-xl border border-sky-500/30 bg-sky-500/10 text-sky-400 hover:bg-sky-500/20"
+              >
+                <Printer className="h-4 w-4 mr-1.5" /> Print Invoice
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => downloadOrderExcel(orderDetails as Order)}
+                className="w-full h-10 font-bold rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+              >
+                <FileSpreadsheet className="h-4 w-4 mr-1.5" /> Download Excel
+              </Button>
+            </div>
           )}
         </motion.div>
       </div>
@@ -748,6 +786,25 @@ const Checkout = () => {
                         className="h-11 bg-muted/30 rounded-xl border-border focus-visible:ring-primary/20 text-sm" 
                       />
                     </div>
+                  </div>
+
+                  {/* Email Address */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="email" className="text-muted-foreground text-xs font-semibold">
+                        Email Address <span className="text-destructive">*</span>
+                      </Label>
+                      <span className="text-[11px] text-muted-foreground/70 font-normal">For order confirmation & electronic invoice</span>
+                    </div>
+                    <Input 
+                      id="email" 
+                      required 
+                      type="email" 
+                      value={form.email} 
+                      onChange={e => setForm(f => ({ ...f, email: e.target.value }))} 
+                      placeholder="e.g. customer@example.com" 
+                      className="h-11 bg-muted/30 rounded-xl border-border focus-visible:ring-primary/20 text-sm" 
+                    />
                   </div>
                 </div>
 

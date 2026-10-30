@@ -9,6 +9,7 @@ import { getLocalOrders, downloadOrderExcel, type Order } from "../lib/orderExpo
 
 const statusConfig = {
   Pending: { icon: Clock, color: "text-amber-500", bg: "bg-amber-500/10", step: 1 },
+  Confirmed: { icon: CheckCircle2, color: "text-sky-500", bg: "bg-sky-500/10", step: 1 },
   Processing: { icon: Package, color: "text-blue-500", bg: "bg-blue-500/10", step: 2 },
   Shipped: { icon: Truck, color: "text-purple-500", bg: "bg-purple-500/10", step: 3 },
   Delivered: { icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-500/10", step: 4 },
@@ -58,7 +59,7 @@ const Orders = () => {
           const key = o.trackingId || o._id;
           if (key && !mergedMap.has(key)) {
             // Include order if user matches or email matches or guest
-            if (!user || !o.userId || o.userId === "guest" || o.userId === user.id || o.customerEmail === user.email) {
+            if (!user || !o.userId || o.userId === "guest" || o.userId === user.id || o.customer?.email === user.email) {
               mergedMap.set(key, o);
             }
           }
@@ -117,12 +118,22 @@ const Orders = () => {
 
         <div className="space-y-8">
           {orders.map((order, idx) => {
-            const statusInfo = statusConfig[order.status] || statusConfig.Processing;
+            const effectiveStatus = (order.orderStatus || order.status || "Pending") as keyof typeof statusConfig;
+            const statusInfo = statusConfig[effectiveStatus] || statusConfig.Pending;
             const StatusIcon = statusInfo.icon;
             const currentStep = order.trackingStage !== undefined && order.trackingStage !== null 
               ? order.trackingStage 
               : statusInfo.step;
-            const trackingNumber = order.trackingId || `TRK-GZ-${order._id.slice(-6).toUpperCase()}`;
+            const trackingNumber = order.trackingId || order.orderId || `TRK-GZ-${order._id.slice(-6).toUpperCase()}`;
+
+            const customerName = order.customer?.name || order.shippingInfo?.name;
+            const customerPhone = order.customer?.phone || order.shippingInfo?.phone;
+            const altPhone = order.customer?.alternatePhone || order.shippingInfo?.alternatePhone;
+            const addressStr = order.shippingAddress
+              ? `${order.shippingAddress.address || order.shippingAddress.address1 || ""}${order.shippingAddress.address2 ? `, ${order.shippingAddress.address2}` : ""}, ${order.shippingAddress.city ? `${order.shippingAddress.city}, ` : ""}${order.shippingAddress.state}, ${order.shippingAddress.country || "India"} - ${order.shippingAddress.pincode}`
+              : order.shippingInfo?.address1 
+                ? `${order.shippingInfo.address1}${order.shippingInfo.address2 ? `, ${order.shippingInfo.address2}` : ""}, ${order.shippingInfo.city ? `${order.shippingInfo.city}, ` : ""}${order.shippingInfo.state}, ${order.shippingInfo.country || "India"} - ${order.shippingInfo.pincode}`
+                : order.shippingInfo?.address;
 
             return (
               <motion.div 
@@ -149,12 +160,12 @@ const Orders = () => {
                     </div>
                     <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${statusInfo.bg}`}>
                       <StatusIcon className={`h-4 w-4 ${statusInfo.color}`} />
-                      <span className={`text-sm font-bold ${statusInfo.color}`}>{order.status}</span>
+                      <span className={`text-sm font-bold ${statusInfo.color}`}>{effectiveStatus}</span>
                     </div>
                   </div>
 
                   {/* Visual Live Order Tracking Progress Timeline */}
-                  {order.status !== "Cancelled" && (
+                  {effectiveStatus !== "Cancelled" && (
                     <div className="py-2 px-4 bg-secondary/40 rounded-2xl border border-border/50">
                       <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-4">Live Shipment Tracking Progress</p>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative">
@@ -192,25 +203,27 @@ const Orders = () => {
                         ))}
                       </div>
 
-                      {order.shippingInfo && (
+                      {(customerName || addressStr) && (
                         <div className="bg-muted/20 p-3 rounded-xl border border-border/40 text-xs space-y-1">
                           <p className="font-bold text-muted-foreground uppercase text-[10px] tracking-wider">Shipping Address</p>
-                          <p className="font-semibold text-foreground">
-                            {order.shippingInfo.name} • {order.shippingInfo.phone}
-                            {order.shippingInfo.alternatePhone && <span className="text-muted-foreground ml-1">(Alt: {order.shippingInfo.alternatePhone})</span>}
-                          </p>
-                          <p className="text-muted-foreground">
-                            {order.shippingInfo.address1 
-                              ? `${order.shippingInfo.address1}${order.shippingInfo.address2 ? `, ${order.shippingInfo.address2}` : ""}, ${order.shippingInfo.city ? `${order.shippingInfo.city}, ` : ""}${order.shippingInfo.state}, ${order.shippingInfo.country || "India"} - ${order.shippingInfo.pincode}`
-                              : order.shippingInfo.address}
-                          </p>
+                          {customerName && (
+                            <p className="font-semibold text-foreground">
+                              {customerName} {customerPhone && `• ${customerPhone}`}
+                              {altPhone && <span className="text-muted-foreground ml-1">(Alt: {altPhone})</span>}
+                            </p>
+                          )}
+                          {addressStr && (
+                            <p className="text-muted-foreground">
+                              {addressStr}
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
                     <div className="flex flex-col md:items-end justify-between">
                        <div className="text-left md:text-right w-full">
                           <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Total Amount Paid</p>
-                          <p className="font-display text-3xl font-black text-sky-400">₹{order.totalPrice.toLocaleString()}</p>
+                          <p className="font-display text-3xl font-black text-sky-400">₹{(order.grandTotal ?? order.totalPrice ?? 0).toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground mt-1">Courier: {order.courier || "SpeedPost Express"}</p>
                        </div>
                        <div className="mt-6 md:mt-0 flex flex-wrap items-center gap-2 w-full md:w-auto">
