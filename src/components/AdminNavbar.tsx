@@ -45,7 +45,7 @@ export const AdminNavbar = () => {
                 </span>
               </div>
               <span className="text-[10px] text-slate-400 font-mono tracking-tight -mt-0.5">
-                admin.gzones.in
+                Management Console
               </span>
             </div>
           </Link>

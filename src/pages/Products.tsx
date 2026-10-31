@@ -19,6 +19,35 @@ const Products = () => {
   const [sort, setSort] = useState("newest");
   const [showFilters, setShowFilters] = useState(false);
 
+  const availableCategories = useMemo(() => {
+    const list = [{ id: "all", name: "All Products" }];
+    const seen = new Set(["all"]);
+
+    // Extract categories from actual products in MongoDB
+    products.forEach(p => {
+      if (p.category && !seen.has(p.category)) {
+        const formatted = p.category
+          .split("-")
+          .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(" ");
+        list.push({ id: p.category, name: formatted });
+        seen.add(p.category);
+      }
+    });
+
+    // If no products in DB yet, show predefined categories as reference
+    if (list.length === 1) {
+      categories.forEach(c => {
+        if (!seen.has(c.id)) {
+          list.push(c);
+          seen.add(c.id);
+        }
+      });
+    }
+
+    return list;
+  }, [products]);
+
   const filtered = useMemo(() => {
     let list = [...products];
     if (selectedCategory !== "all") list = list.filter(p => p.category === selectedCategory);
@@ -68,13 +97,7 @@ const Products = () => {
           <aside className={`${showFilters ? "block" : "hidden"} md:block w-full md:w-56 shrink-0`}>
             <div className="sticky top-24 space-y-2 bg-card/60 backdrop-blur md:bg-transparent p-4 md:p-0 rounded-2xl border border-border md:border-none shadow-lg md:shadow-none">
               <h3 className="font-display font-semibold text-sm mb-3">Categories</h3>
-              <button
-                onClick={() => { setSelectedCategory("all"); setShowFilters(false); }}
-                className={`block w-full text-left px-3.5 py-2 rounded-lg text-sm transition-colors ${selectedCategory === "all" ? "bg-primary text-primary-foreground font-semibold" : "hover:bg-secondary text-muted-foreground"}`}
-              >
-                All Products
-              </button>
-              {categories.map(cat => (
+              {availableCategories.map(cat => (
                 <button
                   key={cat.id}
                   onClick={() => { setSelectedCategory(cat.id); setShowFilters(false); }}

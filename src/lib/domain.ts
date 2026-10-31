@@ -47,56 +47,11 @@ export const isAdminSubdomain = (): boolean => {
  * On local dev: http://localhost:5173/ (or active dev port)
  */
 export const getStorefrontUrl = (): string => {
-  if (typeof window === "undefined") return "https://gzones.in/";
-  const hostname = window.location.hostname.toLowerCase();
-
-  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".localhost")) {
-    const port = window.location.port ? `:${window.location.port}` : "";
-    return `${window.location.protocol}//localhost${port}/`;
-  }
-
-  return "https://gzones.in/";
+  return "/";
 };
 
-/**
- * Returns the target URL for the Admin Portal.
- * If token and admin user are provided, embeds an ephemeral SSO payload in the hash fragment (#sso=...)
- * which is processed client-side and immediately stripped from the address bar.
- */
-export const getAdminPortalUrl = (token?: string | null, user?: any): string => {
-  if (typeof window === "undefined") return "https://admin.gzones.in/";
-  const hostname = window.location.hostname.toLowerCase();
-
-  // If in local development and not explicitly testing subdomain, use /admin route
-  if (hostname === "localhost" || hostname === "127.0.0.1") {
-    return "/admin";
-  }
-
-  const base = "https://admin.gzones.in/";
-
-  if (token && user?.isAdmin) {
-    try {
-      const payload: SsoPayload = {
-        token,
-        user: {
-          id: user.id || user._id,
-          email: user.email,
-          isAdmin: true,
-        },
-        exp: Date.now() + 5 * 60 * 1000, // 5 minutes validity
-      };
-
-      const jsonStr = JSON.stringify(payload);
-      // Safe base64 encoding for utf-8 strings
-      const base64 = btoa(unescape(encodeURIComponent(jsonStr)));
-      return `${base}#sso=${base64}`;
-    } catch (err) {
-      console.warn("Failed to generate SSO payload for admin redirect:", err);
-      return base;
-    }
-  }
-
-  return base;
+export const getAdminPortalUrl = (_token?: string | null, _user?: any): string => {
+  return "/admin";
 };
 
 /**

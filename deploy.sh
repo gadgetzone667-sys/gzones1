@@ -202,6 +202,7 @@ echo -e "  🔌 Backend API:        ${GREEN}http://${SERVER_IP}/api/health${NC}"
 echo -e "  💾 Database:           MongoDB 7.0 container (data persists in mongodb_data volume)"
 
 echo -e "\n${CYAN}Useful Operations:${NC}"
+echo -e "  • Create Admin Account: ${YELLOW}$COMPOSE exec -it backend node src/utils/createAdmin.js${NC}"
 echo -e "  • View live logs:     ${YELLOW}$COMPOSE logs -f${NC}"
 echo -e "  • Stop services:      ${YELLOW}$COMPOSE down${NC}"
 echo -e "  • Apply code updates: ${YELLOW}./update.sh${NC}\n"

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { isAdminSubdomain, getStorefrontUrl } from "../lib/domain";
+import { isAdminSubdomain } from "../lib/domain";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import {
@@ -14,8 +14,7 @@ import {
   EyeOff,
   RefreshCw,
   Store,
-  KeyRound,
-  ExternalLink
+  KeyRound
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -30,7 +29,6 @@ const AdminLogin = () => {
   const { login, logout, user } = useAuth();
   const navigate = useNavigate();
   const onAdminSubdomain = isAdminSubdomain();
-  const storefrontUrl = getStorefrontUrl();
 
   // If already logged in as admin, redirect to dashboard (/ on subdomain, /admin on main domain)
   if (user?.isAdmin) {
@@ -101,7 +99,7 @@ const AdminLogin = () => {
               MANAGEMENT CONSOLE
             </span>
             <span className="inline-block px-2.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-mono">
-              admin.gzones.in
+              SECURE ACCESS
             </span>
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight text-foreground font-display">
@@ -193,12 +191,11 @@ const AdminLogin = () => {
         {/* Back to Public Store */}
         <div className="mt-6 pt-4 border-t border-slate-800 text-center">
           <a
-            href={storefrontUrl}
+            href="/"
             className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-sky-400 transition-colors"
           >
             <Store className="h-3.5 w-3.5 text-sky-400" />
-            <span>Return to GadgetZone Public Store (gzones.in)</span>
-            <ExternalLink className="h-3 w-3 text-slate-500" />
+            <span>Return to Public Storefront</span>
           </a>
         </div>
       </motion.div>

@@ -17,17 +17,20 @@ function signToken(user) {
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) {
+    const { email, password } = req.body || {};
+    const cleanEmail = (email || "").trim().toLowerCase();
+    const cleanPassword = (password || "").trim();
+
+    if (!cleanEmail || !cleanPassword) {
       return res.status(400).json({ message: "Email and password required." });
     }
 
     // Enforce mixed combination password
-    const hasMinLength = password.length >= 8;
-    const hasUpper = /[A-Z]/.test(password);
-    const hasLower = /[a-z]/.test(password);
-    const hasNumber = /[0-9]/.test(password);
-    const hasSpecial = /[^A-Za-z0-9]/.test(password);
+    const hasMinLength = cleanPassword.length >= 8;
+    const hasUpper = /[A-Z]/.test(cleanPassword);
+    const hasLower = /[a-z]/.test(cleanPassword);
+    const hasNumber = /[0-9]/.test(cleanPassword);
+    const hasSpecial = /[^A-Za-z0-9]/.test(cleanPassword);
 
     if (!hasMinLength || !hasUpper || !hasLower || !hasNumber || !hasSpecial) {
       return res.status(400).json({
@@ -35,13 +38,13 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    const existing = await User.findOne({ email: email.toLowerCase() });
+    const existing = await User.findOne({ email: cleanEmail });
     if (existing) {
       return res.status(409).json({ message: "An account with this email already exists." });
     }
-    const passwordHash = await bcrypt.hash(password, 12);
+    const passwordHash = await bcrypt.hash(cleanPassword, 12);
     const user = await User.create({
-      email: email.toLowerCase(),
+      email: cleanEmail,
       passwordHash,
       lastLogin: new Date(),
     });
@@ -52,6 +55,9 @@ router.post("/register", async (req, res) => {
       user: { id: user._id, email: user.email, isAdmin: user.isAdmin },
     });
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ message: "An account with this email already exists." });
+    }
     res.status(500).json({ message: "Server error.", error: err.message });
   }
 });

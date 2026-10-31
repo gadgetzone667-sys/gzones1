@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
-import { type Product, products as initialProducts } from "../data/products";
+import type { Product } from "../data/products";
 import { useAuth } from "./AuthContext";
 
 interface ProductContextType {
@@ -43,14 +43,14 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       const res = await fetch("/api/products");
       if (!res.ok) throw new Error("Failed to fetch products");
       const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         setProducts(data.map(toProduct));
       } else {
-        setProducts(initialProducts);
+        setProducts([]);
       }
     } catch (err) {
-      console.warn("ProductContext: Backend server unavailable, falling back to static data", err);
-      setProducts(initialProducts);
+      console.warn("ProductContext: Could not connect to backend /api/products:", err);
+      setProducts([]);
     } finally {
       setIsLoading(false);
     }

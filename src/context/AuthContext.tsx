@@ -106,34 +106,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // If server explicitly rejected with 401 Unauthorized with JSON body
       if (res.status === 401) {
-        const contentType = res.headers.get("content-type") || "";
-        if (contentType.includes("application/json")) {
-          // If not master admin and backend gave 401, return false
-          if (cleanEmail !== "admin@gzones.in" || cleanPassword !== "Vijay@2223") {
-            return false;
-          }
-        }
+        return false;
       }
     } catch (err) {
-      console.warn("Backend API request error, evaluating credentials:", err);
+      console.warn("Backend API request error:", err);
     }
 
-    // Master Administrator fallback (handles static hosting on Vercel where POST /api returns 405 or server is offline)
-    if (cleanEmail === "admin@gzones.in" && cleanPassword === "Vijay@2223") {
-      const adminUser: User = {
-        id: "admin-master-root",
-        email: "admin@gzones.in",
-        isAdmin: true,
-      };
-      const sessionToken = "gz_admin_session_" + Date.now();
-      localStorage.setItem("GadgetZone_token", sessionToken);
-      localStorage.setItem("GadgetZone_user", JSON.stringify(adminUser));
-      setUser(adminUser);
-      setToken(sessionToken);
-      return true;
-    }
-
-    // Customer fallback for static Vercel hosting when /api returns 405
+    // Customer fallback for offline local testing
     const localUsers = getLocalUsers();
     const matched = localUsers.find(u => u.email === cleanEmail && u.pass === cleanPassword);
     if (matched) {
@@ -195,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       id: "usr_" + Math.random().toString(36).substring(2, 10),
       email: cleanEmail,
       pass: cleanPassword,
-      isAdmin: cleanEmail === "admin@gzones.in",
+      isAdmin: false,
     };
     localUsers.push(newUser);
     saveLocalUsers(localUsers);

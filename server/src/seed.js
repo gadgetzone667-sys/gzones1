@@ -291,12 +291,9 @@ const services = [
   },
 ];
 
+const defaultAdminPassword = process.env.ADMIN_PASSWORD || "Admin@" + Math.random().toString(36).substring(2, 8);
 const users = [
-  { email: "admin@gzones.in", password: "Vijay@2223", isAdmin: true },
-  { email: "vijay", password: "Vijay@2223", isAdmin: true },
-  { email: "vijay@techspare.com", password: "Vijay@2223", isAdmin: true },
-  { email: "admin@techspare.com", password: "Vijay@2223", isAdmin: true },
-  { email: "user@example.com", password: "user123", isAdmin: false },
+  { email: (process.env.ADMIN_EMAIL || "admin@gzones.in").toLowerCase(), password: defaultAdminPassword, isAdmin: true },
 ];
 
 async function seed() {
@@ -332,9 +329,7 @@ async function seed() {
     console.log(`🛠️  Seeded ${services.length} services`);
 
     console.log("\n✨ Seed complete!");
-    console.log("   Demo accounts:");
-    console.log("   Admin  → admin@gzones.in / Vijay@2223");
-    console.log("   User   → user@example.com / user123");
+    console.log(`   Admin account ready: ${process.env.ADMIN_EMAIL || "admin@gzones.in"}`);
   } catch (err) {
     console.error("❌ Seed failed:", err.message);
   } finally {

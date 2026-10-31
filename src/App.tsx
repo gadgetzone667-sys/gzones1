@@ -22,7 +22,6 @@ import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import Admin from "./pages/Admin";
 import AdminLogin from "./pages/AdminLogin";
-import AdminRedirect from "./pages/AdminRedirect";
 import ProductDetails from "./pages/ProductDetails";
 import Wishlist from "./pages/Wishlist";
 import Checkout from "./pages/Checkout";
@@ -103,14 +102,23 @@ const AdminSubdomainPortal = () => {
   );
 };
 
+const AdminRouteGuard = () => {
+  const { user, isLoading } = useAuth();
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+  if (!user || !user.isAdmin) {
+    return <Navigate to="/admin/login" replace />;
+  }
+  return <Admin />;
+};
+
 const App = () => {
   const onAdminDomain = isAdminSubdomain();
-  const isLocalDev =
-    typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-  const isDirectAdmin =
-    typeof window !== "undefined" &&
-    (window.location.search.includes("direct=1") || window.location.search.includes("mode=direct"));
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -141,15 +149,8 @@ const App = () => {
                             <Route path="/wishlist" element={<Wishlist />} />
                             <Route path="/product/:id" element={<ProductDetails />} />
                             <Route path="/orders" element={<Orders />} />
-                            {/* In local dev keep /admin directly accessible, in production redirect to admin.gzones.in */}
-                            <Route
-                              path="/admin"
-                              element={isLocalDev || isDirectAdmin ? <Admin /> : <AdminRedirect />}
-                            />
-                            <Route
-                              path="/admin/login"
-                              element={isLocalDev ? <AdminLogin /> : <AdminRedirect loginOnly />}
-                            />
+                            <Route path="/admin" element={<AdminRouteGuard />} />
+                            <Route path="/admin/login" element={<AdminLogin />} />
                             <Route path="/login" element={<Login />} />
                             <Route path="*" element={<NotFound />} />
                           </Routes>

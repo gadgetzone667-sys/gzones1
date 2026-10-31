@@ -15,37 +15,19 @@ import contactRoutes from "./routes/contact.js";
 
 const app = express();
 
-// Middleware: Configure CORS for main domain, admin subdomain, and localhost
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  "http://admin.localhost:5173",
-  "http://localhost:3000",
-  "https://gzones.in",
-  "https://www.gzones.in",
-  "https://admin.gzones.in",
-];
-
+// Middleware: Enable CORS for all origins, IP addresses, and custom domains
 app.use(
   cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true);
-      if (
-        allowedOrigins.includes(origin) ||
-        /^https?:\/\/(?:[a-zA-Z0-9-]+\.)*gzones\.in(?::\d+)?$/.test(origin) ||
-        /^http:\/\/(?:[a-zA-Z0-9-]+\.)*localhost(?::\d+)?$/.test(origin)
-      ) {
-        return callback(null, true);
-      }
-      return callback(null, true);
-    },
+    origin: true,
     credentials: true,
   })
 );
 
-app.use(express.json());
+// High-capacity JSON parser to support direct product photo uploads (up to 50MB)
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-// Ensure MongoDB is connected before handling requests (essential for Vercel Serverless Functions)
+// Ensure MongoDB is connected
 app.use(async (_req, _res, next) => {
   try {
     await connectDB();
@@ -72,4 +54,3 @@ app.get("/", (_req, res) =>
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
 
 export default app;
-

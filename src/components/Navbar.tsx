@@ -185,8 +185,8 @@ const Navbar = () => {
                           <Package className="h-4 w-4" /> My Orders
                         </Link>
                         {user.isAdmin && (
-                          <a
-                            href={adminPortalUrl}
+                          <Link
+                            to="/admin"
                             onClick={() => {
                               closeSearch();
                               setUserMenuOpen(false);
@@ -194,7 +194,7 @@ const Navbar = () => {
                             className="w-full text-left px-3 py-2 text-sm text-purple-400 hover:bg-purple-500/10 rounded-lg font-medium transition-colors flex items-center gap-2"
                           >
                             <ShieldCheck className="h-4 w-4" /> Admin Portal
-                          </a>
+                          </Link>
                         )}
                         <button 
                           onClick={() => {
@@ -359,17 +359,17 @@ const Navbar = () => {
           >
             <div className="px-4 py-4 space-y-1 bg-background/95 backdrop-blur-lg">
               {[...navLinks, ...(user?.isAdmin ? [{ to: "/admin", label: "Admin" }] : [])].map(link => {
-                if (link.to === "/admin" && adminPortalUrl.startsWith("http")) {
+                if (link.to === "/admin") {
                   return (
-                    <a
+                    <Link
                       key={link.to}
-                      href={adminPortalUrl}
+                      to="/admin"
                       onClick={() => setMobileOpen(false)}
                       className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 text-purple-300 bg-purple-500/15 border border-purple-500/40 shadow-[0_0_12px_rgba(168,85,247,0.25)]"
                     >
                       <ShieldCheck className="h-4 w-4 text-purple-400" />
-                      <span>Admin Console (admin.gzones.in)</span>
-                    </a>
+                      <span>Admin Console</span>
+                    </Link>
                   );
                 }
                 return (

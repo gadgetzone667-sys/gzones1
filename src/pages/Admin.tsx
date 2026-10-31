@@ -727,7 +727,7 @@ const Admin = () => {
         <div>
           <div className="flex items-center gap-2 mb-2">
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider bg-purple-500/15 border border-purple-500/30 text-purple-300">
-              <ShieldCheck className="h-3 w-3 text-purple-400" /> admin.gzones.in
+              <ShieldCheck className="h-3 w-3 text-purple-400" /> Management Console
             </span>
             <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium">
               <span className="relative flex h-2 w-2">
@@ -907,6 +907,18 @@ const Admin = () => {
           )}
 
           <div className="space-y-8">
+            {products.length === 0 && !showAdd && (
+              <div className="text-center py-16 px-4 border border-dashed border-border rounded-2xl bg-card/40 my-6">
+                <Package className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-60" />
+                <h3 className="font-bold text-lg mb-1">No products in MongoDB yet</h3>
+                <p className="text-sm text-muted-foreground max-w-md mx-auto mb-5">
+                  Your store catalog is currently empty. Add your first dynamic product using the button below.
+                </p>
+                <Button onClick={() => setShowAdd(true)} className="rounded-xl gap-1.5 font-bold">
+                  <Plus className="h-4 w-4" /> Add First Product
+                </Button>
+              </div>
+            )}
             {Object.entries(
               products.reduce((acc, current) => {
                 const cat = current.category || "Uncategorized";
