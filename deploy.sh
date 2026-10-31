@@ -143,6 +143,9 @@ echo -e "${GREEN}✓ Images built successfully.${NC}"
 # ------------------------------------------------------------------------------
 echo -e "\n${BLUE}[5/6] Starting containerized services in background...${NC}"
 
+# Remove any stopped/stale containers with colliding names
+docker rm -f gadgetzone-mongodb gadgetzone-backend gadgetzone-frontend 2>/dev/null || true
+
 $COMPOSE up -d
 
 # ------------------------------------------------------------------------------

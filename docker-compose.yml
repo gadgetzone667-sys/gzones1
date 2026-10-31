@@ -43,6 +43,8 @@ services:
       # Defaults to local Docker MongoDB; can be overridden in .env for MongoDB Atlas
       - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/GadgetZone}
       - JWT_SECRET=${JWT_SECRET:-GadgetZone_super_secret_key_change_in_production}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@gzones.in}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-Vijay@2223}
     depends_on:
       mongodb:
         condition: service_healthy
