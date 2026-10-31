@@ -77,8 +77,8 @@ echo -e "${GREEN}✓ New container images built and ready.${NC}"
 # ------------------------------------------------------------------------------
 echo -e "\n${BLUE}[3/5] Performing atomic rollout (stopping old, starting updated containers)...${NC}"
 
-# Swaps frontend and backend with zero downtime, keeping MongoDB continuously running
-$COMPOSE up -d --no-deps --remove-orphans frontend backend
+# Ensures database is running and deploys updated frontend and backend
+$COMPOSE up -d --remove-orphans
 
 echo -e "${GREEN}✓ New containers deployed successfully.${NC}"
 
