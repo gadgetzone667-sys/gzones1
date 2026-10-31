@@ -2,7 +2,7 @@
 
 A modern, responsive web application built with React, TypeScript, and Vite.
 
-## 🚀 Features
+## 🚀 Features..
 
 - Responsive user interface
 - React component-based architecture
@@ -94,11 +94,13 @@ docker compose up --build
 ```
 
 Access the app:
+
 - **Frontend Storefront:** [http://localhost](http://localhost) or [http://localhost:5173](http://localhost:5173)
 - **Backend API:** [http://localhost:5000/api/health](http://localhost:5000/api/health)
 - **Database (MongoDB):** `localhost:27017`
 
 To stop:
+
 ```bash
 docker compose down
 ```
