@@ -1,0 +1,98 @@
+services:
+  # ==============================================================================
+  # 1. Database Service (MongoDB 7.0)
+  # ==============================================================================
+  mongodb:
+    image: mongo:7.0
+    container_name: gadgetzone-mongodb
+    restart: unless-stopped
+    # Bind to 127.0.0.1 to allow local host inspection without exposing DB to the public internet
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    networks:
+      - gadgetzone-network
+
+  # ==============================================================================
+  # 2. Backend API Service (Node.js Express + Mongoose)
+  # ==============================================================================
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: gadgetzone-backend
+    restart: unless-stopped
+    # Exposed on localhost for health checking; frontend proxies requests internally
+    ports:
+      - "127.0.0.1:5000:5000"
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      # Defaults to local Docker MongoDB; can be overridden in .env for MongoDB Atlas
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/GadgetZone}
+      - JWT_SECRET=${JWT_SECRET:-GadgetZone_super_secret_key_change_in_production}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5000/api/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    networks:
+      - gadgetzone-network
+
+  # ==============================================================================
+  # 3. Frontend Web Service (Vite React built & served via Nginx Reverse Proxy)
+  # ==============================================================================
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gadgetzone-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "5173:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    networks:
+      - gadgetzone-network
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  gadgetzone-network:
+    driver: bridge

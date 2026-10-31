@@ -58,7 +58,62 @@ npm run dev
 
 Open the local URL displayed in your terminal to view the application.
 
-## 🏗️ Build for Production
+## 🐧 Linux / AlmaLinux Production Server Deployment
+
+Automated shell scripts are provided for deploying and updating GadgetZone on **AlmaLinux 8/9**, Rocky Linux, RHEL, CentOS, Ubuntu, and Debian:
+
+### 1. Initial Setup & Launch (`deploy.sh`)
+
+Automatically verifies Docker, configures `.env`, opens required `firewalld` ports, builds production containers, starts the stack, and runs health checks:
+
+```bash
+chmod +x deploy.sh update.sh
+./deploy.sh
+```
+
+### 2. Zero-Downtime Live Updates (`update.sh`)
+
+Pulls recent Git changes, compiles the new frontend & backend images **while the current live containers are still running**, then performs an instant container swap with zero downtime:
+
+```bash
+./update.sh
+```
+
+---
+
+## 🐳 Running with Docker & Docker Compose (Manual)
+
+You can run the entire GadgetZone fullstack application (Frontend + Backend + MongoDB) using Docker and Docker Compose with a single command.
+
+### 1. Production Mode (Recommended)
+
+Builds the optimized production frontend with Nginx and starts the Express backend and MongoDB:
+
+```bash
+docker compose up --build
+```
+
+Access the app:
+- **Frontend Storefront:** [http://localhost](http://localhost) or [http://localhost:5173](http://localhost:5173)
+- **Backend API:** [http://localhost:5000/api/health](http://localhost:5000/api/health)
+- **Database (MongoDB):** `localhost:27017`
+
+To stop:
+```bash
+docker compose down
+```
+
+### 2. Development Mode (Live Hot-Reloading)
+
+Mounts your local source code with live hot-reloading for rapid development:
+
+```bash
+docker compose -f docker-compose.dev.yml up --build
+```
+
+---
+
+## 🏗️ Build for Production (Manual)
 
 Create a production build:
 

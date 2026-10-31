@@ -4,11 +4,14 @@ dotenv.config();
 import mongoose from "mongoose";
 import dns from "dns";
 
-// Windows Node.js querySrv ECONNREFUSED workaround for local ISP/router DNS
-try {
-  dns.setServers(["8.8.8.8", "1.1.1.1"]);
-} catch {
-  // Continue with default system DNS if setServers is unavailable
+// Windows Node.js querySrv ECONNREFUSED workaround for local ISP/router DNS when connecting to MongoDB Atlas (+srv)
+const targetUri = process.env.MONGODB_URI || process.env.MONGO_URI || "";
+if (targetUri.includes("mongodb+srv://")) {
+  try {
+    dns.setServers(["8.8.8.8", "1.1.1.1"]);
+  } catch {
+    // Continue with default system DNS if setServers is unavailable
+  }
 }
 
 // Redact credentials from error messages to protect sensitive details

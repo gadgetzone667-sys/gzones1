@@ -1,0 +1,64 @@
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: gadgetzone-mongodb-dev
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data_dev:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - gadgetzone-dev-network
+
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
+    container_name: gadgetzone-backend-dev
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    environment:
+      - PORT=5000
+      - NODE_ENV=development
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/GadgetZone}
+      - JWT_SECRET=${JWT_SECRET:-GadgetZone_super_secret_key_change_in_production}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - gadgetzone-dev-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: gadgetzone-frontend-dev
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - gadgetzone-dev-network
+
+volumes:
+  mongodb_data_dev:
+    driver: local
+
+networks:
+  gadgetzone-dev-network:
+    driver: bridge
+
