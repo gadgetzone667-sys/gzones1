@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { useAuth } from "./AuthContext";
-import { testimonials as initialReviews } from "../data/products";
 
 export interface Review {
   id: string;
@@ -46,14 +45,14 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch reviews");
       const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         setReviews(data.map(toReview));
       } else {
-        setReviews(initialReviews);
+        setReviews([]);
       }
     } catch (err) {
-      console.warn("ReviewContext: Backend server offline, falling back to static reviews", err);
-      setReviews(initialReviews);
+      console.warn("ReviewContext: Backend server offline", err);
+      setReviews([]);
     } finally {
       setIsLoading(false);
     }

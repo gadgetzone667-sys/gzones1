@@ -3,7 +3,6 @@ import { motion } from "framer-motion";
 import { Wrench, Camera, Wifi, Laptop, Database, Printer, CheckCircle, Loader2, Calendar, Clock, MapPin, Phone, User as UserIcon, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
-import { services as initialServices } from "../data/products";
 import {
   Dialog,
   DialogContent,
@@ -63,14 +62,14 @@ const Services = () => {
         const res = await fetch("/api/services");
         if (!res.ok) throw new Error("Failed to fetch services");
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           setServices(data);
         } else {
-          setServices(initialServices);
+          setServices([]);
         }
       } catch (err) {
-        console.warn("Services: Backend server offline, falling back to static data", err);
-        setServices(initialServices);
+        console.warn("Services: Backend service offline", err);
+        setServices([]);
       } finally {
         setLoading(false);
       }
@@ -177,42 +176,52 @@ const Services = () => {
           </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          {services.map((s, i) => {
-            const Icon = iconMap[s.icon] || Wrench;
-            return (
-              <motion.div
-                key={s.id}
-                {...fadeUp}
-                transition={{ delay: i * 0.1 }}
-                className="bg-card rounded-xl border border-border p-8 card-hover flex flex-col"
-              >
-                <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center mb-5">
-                  <Icon className="h-6 w-6 text-primary-foreground" />
-                </div>
-                <h3 className="font-display text-xl font-bold mb-2">{s.name}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed mb-4 flex-1">{s.description}</p>
-                <ul className="space-y-2 mb-6">
-                  {s.features.map(f => (
-                    <li key={f} className="flex items-center gap-2 text-sm">
-                      <CheckCircle className="h-4 w-4 text-success shrink-0" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <div className="flex items-center justify-between pt-4 border-t border-border">
-                  <span className="font-display font-bold">{s.price}</span>
-                  <button
-                    onClick={() => handleBookNow(s)}
-                    className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
-                  >
-                    Book Now
-                  </button>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
+        {services.length === 0 ? (
+          <div className="text-center py-16 bg-card/50 rounded-2xl border border-border max-w-md mx-auto p-8">
+            <Wrench className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+            <h3 className="text-lg font-bold mb-2">No Services Listed Yet</h3>
+            <p className="text-sm text-muted-foreground">
+              Our hardware and repair services will be added shortly. You can also reach us via the Contact page.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {services.map((s, i) => {
+              const Icon = iconMap[s.icon] || Wrench;
+              return (
+                <motion.div
+                  key={s.id}
+                  {...fadeUp}
+                  transition={{ delay: i * 0.1 }}
+                  className="bg-card rounded-xl border border-border p-8 card-hover flex flex-col"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center mb-5">
+                    <Icon className="h-6 w-6 text-primary-foreground" />
+                  </div>
+                  <h3 className="font-display text-xl font-bold mb-2">{s.name}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed mb-4 flex-1">{s.description}</p>
+                  <ul className="space-y-2 mb-6">
+                    {s.features.map(f => (
+                      <li key={f} className="flex items-center gap-2 text-sm">
+                        <CheckCircle className="h-4 w-4 text-success shrink-0" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="flex items-center justify-between pt-4 border-t border-border">
+                    <span className="font-display font-bold">{s.price}</span>
+                    <button
+                      onClick={() => handleBookNow(s)}
+                      className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+                    >
+                      Book Now
+                    </button>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Booking Modal */}

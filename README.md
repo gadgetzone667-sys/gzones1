@@ -1,176 +1,92 @@
-# GZones
+# GadgetZone - Enterprise Fullstack E-Commerce Platform
 
-A modern, responsive web application built with React, TypeScript, and Vite.
+A production-grade, containerized e-commerce and hardware management system built with React, Vite, Node.js Express, and MongoDB.
 
-## 🚀 Features..
+---
 
-- Responsive user interface
-- React component-based architecture
-- TypeScript support
-- Tailwind CSS for styling
-- PostCSS integration
-- ESLint for code quality
-- Node.js backend support
-- Fast development with Vite
+## 🏗️ Architecture & Project Structure
 
-## 🛠️ Tech Stack
+The project features a clean, decoupled fullstack structure:
 
-- **Frontend:** React, TypeScript, Vite
-- **Styling:** Tailwind CSS, PostCSS
-- **Backend:** Node.js
-- **Code Quality:** ESLint
-- **Package Manager:** npm
-- **Version Control:** Git and GitHub
-
-## 📋 Prerequisites
-
-Before running the project, make sure you have installed:
-
-- [Node.js](https://nodejs.org/)
-- npm (included with Node.js)
-- [Git](https://git-scm.com/)
-
-## 💻 Installation
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/gadgetzone667-sys/gzones1.git
+```text
+GadgetZone/
+├── frontend/             # React 18 + Vite + Tailwind CSS Client
+│   ├── src/              # Storefront & Admin Portal UI components
+│   ├── public/           # Static media assets & icons
+│   ├── nginx.conf        # Production Nginx reverse-proxy configuration
+│   ├── Dockerfile        # Multi-stage production container build
+│   └── package.json      # Frontend dependencies & Vite scripts
+│
+├── server/               # Express + Mongoose Backend API
+│   ├── src/
+│   │   ├── config/       # Resilient MongoDB Atlas / Docker connection
+│   │   ├── middleware/   # JWT authentication & Admin RBAC guards
+│   │   ├── models/       # Product, Order, User, Review, Service schemas
+│   │   ├── routes/       # REST API endpoints (/api/products, /api/auth, etc.)
+│   │   └── utils/        # Interactive Admin CLI creation tool
+│   ├── Dockerfile        # Production backend container build
+│   └── package.json      # Express dependencies
+│
+├── docker-compose.yml    # Production container orchestration
+├── docker-compose.dev.yml# Local development container orchestration
+├── deploy.sh             # Linux (AlmaLinux / Ubuntu / RHEL) initial deployment
+├── update.sh             # Zero-downtime rolling update script
+├── package.json          # Root workspace orchestration scripts
+└── vercel.json           # Cloud deployment configuration
 ```
 
-### 2. Navigate to the project directory
+---
 
+## 🚀 Quick Start (Development)
+
+### 1. Install Dependencies
 ```bash
-cd gz​ones1
+# Install frontend
+npm install --prefix frontend
+
+# Install server
+npm install --prefix server
 ```
 
-### 3. Install dependencies
-
+### 2. Run Locally
 ```bash
-npm install
+# Start frontend (Vite on http://localhost:5173)
+npm run dev:frontend
+
+# Start server (Express on http://localhost:5000)
+npm run dev:server
 ```
 
-### 4. Start the development server
+---
 
+## 🐳 Production Deployment (AlmaLinux / Ubuntu / Debian)
+
+### 1. Clone & Initial Setup
 ```bash
-npm run dev
-```
-
-Open the local URL displayed in your terminal to view the application.
-
-## 🐧 Linux / AlmaLinux Production Server Deployment
-
-Automated shell scripts are provided for deploying and updating GadgetZone on **AlmaLinux 8/9**, Rocky Linux, RHEL, CentOS, Ubuntu, and Debian:
-
-### 1. Initial Setup & Launch (`deploy.sh`)
-
-Automatically verifies Docker, configures `.env`, opens required `firewalld` ports, builds production containers, starts the stack, and runs health checks:
-
-```bash
+git clone https://github.com/gadgetzone667-sys/gzones1.git GadgetZone
+cd GadgetZone
 chmod +x deploy.sh update.sh
 ./deploy.sh
 ```
 
-### 2. Zero-Downtime Live Updates (`update.sh`)
+### 2. Create Administrator Account
+Run directly in the server terminal (no plaintext passwords saved in `.env`):
+```bash
+docker compose exec -it backend node src/utils/createAdmin.js
+```
+Follow the interactive prompt to set your Admin credentials.
 
-Pulls recent Git changes, compiles the new frontend & backend images **while the current live containers are still running**, then performs an instant container swap with zero downtime:
-
+### 3. Apply Code Updates (Zero Downtime)
+Whenever you push changes to GitHub:
 ```bash
 ./update.sh
 ```
 
 ---
 
-## 🐳 Running with Docker & Docker Compose (Manual)
+## 🔒 Security Highlights
 
-You can run the entire GadgetZone fullstack application (Frontend + Backend + MongoDB) using Docker and Docker Compose with a single command.
-
-### 1. Production Mode (Recommended)
-
-Builds the optimized production frontend with Nginx and starts the Express backend and MongoDB:
-
-```bash
-docker compose up --build
-```
-
-Access the app:
-
-- **Frontend Storefront:** [http://localhost](http://localhost) or [http://localhost:5173](http://localhost:5173)
-- **Backend API:** [http://localhost:5000/api/health](http://localhost:5000/api/health)
-- **Database (MongoDB):** `localhost:27017`
-
-To stop:
-
-```bash
-docker compose down
-```
-
-### 2. Development Mode (Live Hot-Reloading)
-
-Mounts your local source code with live hot-reloading for rapid development:
-
-```bash
-docker compose -f docker-compose.dev.yml up --build
-```
-
----
-
-## 🏗️ Build for Production (Manual)
-
-Create a production build:
-
-```bash
-npm run build
-```
-
-Preview the production build locally:
-
-```bash
-npm run preview
-```
-
-## 🔍 Code Quality
-
-Run ESLint to check for code quality issues:
-
-```bash
-npm run lint
-```
-
-## ⚙️ Environment Variables
-
-If the project requires API keys or environment variables, configure them in a local `.env` file.
-
-**Important:** Never commit passwords, API keys, access tokens, or other sensitive credentials to GitHub.
-
-## 📁 Project Structure
-
-```text
-gzones1/
-├── public/              # Static assets
-├── server/              # Backend server files
-├── src/                 # Frontend source code
-├── .gitignore           # Files excluded from Git
-├── index.html           # HTML entry point
-├── package.json         # Dependencies and scripts
-├── package-lock.json    # Dependency lock file
-├── tailwind.config.js   # Tailwind CSS configuration
-├── vite.config.js       # Vite configuration
-└── README.md            # Project documentation
-```
-
-## 🤝 Contributing
-
-1. Fork the repository.
-2. Create a new branch.
-3. Make your changes.
-4. Commit your changes.
-5. Submit a pull request.
-
-## 📄 License
-
-No license has been specified yet. All rights are reserved by the copyright holder unless a license is added.
-
----
-
-**Developed with ❤️ by GZones**
+- **Bcrypt (12 Rounds):** Passwords hashed with salted 12-factor rounds.
+- **Direct CLI Admin Creation:** Eliminates plaintext credentials in `.env` or code files.
+- **50MB Photo Uploads:** High-capacity body parsers for high-resolution product photography.
+- **100% Dynamic Catalog:** Single source of truth in MongoDB (no static fake data).

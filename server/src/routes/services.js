@@ -1,4 +1,5 @@
 import express from "express";
+import mongoose from "mongoose";
 import Service from "../models/Service.js";
 import { requireAdmin } from "../middleware/auth.js";
 
@@ -8,13 +9,13 @@ const router = express.Router();
 router.get("/", async (_req, res) => {
   try {
     const services = await Service.find();
-    res.json(services.map(s => ({
+    res.json((services || []).map(s => ({
       id: s._id,
       name: s.name,
       description: s.description,
       price: s.price,
       icon: s.icon,
-      features: s.features
+      features: s.features || []
     })));
   } catch (err) {
     res.status(500).json({ message: "Server error fetching services.", error: err.message });

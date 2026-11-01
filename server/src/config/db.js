@@ -1,16 +1,28 @@
 import dotenv from "dotenv";
-dotenv.config();
-
+import path from "path";
+import { fileURLToPath } from "url";
 import mongoose from "mongoose";
 import dns from "dns";
 
-// Windows Node.js querySrv ECONNREFUSED workaround for local ISP/router DNS when connecting to MongoDB Atlas (+srv)
-const targetUri = process.env.MONGODB_URI || process.env.MONGO_URI || "";
-if (targetUri.includes("mongodb+srv://")) {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Robustly search and load environment variables from all standard locations
+dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
+
+// Default MongoDB Atlas production cluster connection string
+const DEFAULT_ATLAS_URI = "mongodb+srv://gadgetzone667_db_user:62yCRXapnIhM8rn8@gzone.jbucsqs.mongodb.net/GadgetZone?retryWrites=true&w=majority&compressors=zlib";
+
+// Safe DNS workaround ONLY on Windows where local ISP DNS sometimes fails on +srv queries
+const targetUri = process.env.MONGODB_URI || process.env.MONGO_URI || DEFAULT_ATLAS_URI;
+if (process.platform === "win32" && targetUri.includes("mongodb+srv://")) {
   try {
     dns.setServers(["8.8.8.8", "1.1.1.1"]);
   } catch {
-    // Continue with default system DNS if setServers is unavailable
+    // Continue with system DNS
   }
 }
 
@@ -21,34 +33,40 @@ function sanitizeError(error) {
   return message.replace(/\/\/[^:]+:[^@]+@/, "//***:***@");
 }
 
-let isConnected = false;
+let isConnecting = false;
 
 export async function connectDB() {
-  const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
-
-  if (!uri) {
-    throw new Error("MONGODB_URI is missing from environment variables");
+  // If already connected or connecting, return immediately
+  if (mongoose.connection.readyState === 1) {
+    return mongoose.connection;
   }
-
-  // Prevent duplicate connections if already connected or connecting
-  if (isConnected || mongoose.connection.readyState === 1) {
+  if (isConnecting) {
     return;
   }
 
+  const rawUri = process.env.MONGODB_URI || process.env.MONGO_URI || DEFAULT_ATLAS_URI;
+  let connectionUri = (rawUri || "").trim();
+
   // Gracefully handle accidental placeholder angle brackets in URI if present
-  let connectionUri = uri;
   if (connectionUri.includes(":<") && connectionUri.includes(">@")) {
     connectionUri = connectionUri.replace(":<", ":").replace(">@", "@");
   }
 
+  isConnecting = true;
   try {
-    await mongoose.connect(connectionUri);
-    isConnected = true;
-    console.log("MongoDB Atlas connected successfully");
+    await mongoose.connect(connectionUri, {
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      family: 4, // Force IPv4 to prevent IPv6 DNS delays
+    });
+    console.log("MongoDB connected successfully");
+    return mongoose.connection;
   } catch (error) {
     const safeMessage = sanitizeError(error);
     console.error("❌ MongoDB connection error:", safeMessage);
     throw new Error(safeMessage);
+  } finally {
+    isConnecting = false;
   }
 }
 

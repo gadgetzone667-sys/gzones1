@@ -1,4 +1,5 @@
 import express from "express";
+import mongoose from "mongoose";
 import Product from "../models/Product.js";
 import { requireAdmin } from "../middleware/auth.js";
 
@@ -12,8 +13,9 @@ router.get("/", async (req, res) => {
     if (category) filter.category = category;
     if (featured === "true") filter.featured = true;
     const products = await Product.find(filter).sort({ createdAt: -1 });
-    res.json(products);
+    res.json(products || []);
   } catch (err) {
+    console.error("GET /api/products error:", err.message);
     res.status(500).json({ message: "Server error.", error: err.message });
   }
 });
@@ -21,10 +23,14 @@ router.get("/", async (req, res) => {
 // GET /api/products/:id
 router.get("/:id", async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ message: "Product not found." });
+    }
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: "Product not found." });
     res.json(product);
   } catch (err) {
+    console.error("GET /api/products/:id error:", err.message);
     res.status(500).json({ message: "Server error.", error: err.message });
   }
 });

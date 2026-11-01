@@ -40,14 +40,14 @@ services:
 
   frontend:
     build:
-      context: .
+      context: ./frontend
       dockerfile: Dockerfile.dev
     container_name: gadgetzone-frontend-dev
     restart: unless-stopped
     ports:
       - "5173:5173"
     volumes:
-      - .:/app
+      - ./frontend:/app
       - /app/node_modules
     depends_on:
       - backend

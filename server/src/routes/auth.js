@@ -6,10 +6,12 @@ import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
+const JWT_SECRET = process.env.JWT_SECRET || "GadgetZone_super_secret_key_change_in_production";
+
 function signToken(user) {
   return jwt.sign(
-    { id: user._id, email: user.email, isAdmin: user.isAdmin },
-    process.env.JWT_SECRET,
+    { id: user._id, email: user.email, isAdmin: Boolean(user.isAdmin) },
+    JWT_SECRET,
     { expiresIn: "7d" }
   );
 }

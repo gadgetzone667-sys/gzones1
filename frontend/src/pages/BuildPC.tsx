@@ -3,7 +3,6 @@ import { useCart } from "../context/CartContext";
 import { motion } from "framer-motion";
 import { ShoppingCart, AlertTriangle, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { pcComponents as initialPcComponents } from "../data/products";
 
 interface PCComponent {
   id: string;
@@ -37,14 +36,14 @@ const BuildPC = () => {
         const res = await fetch("/api/components");
         if (!res.ok) throw new Error("Failed to fetch components");
         const data = await res.json();
-        if (data && Object.keys(data).length > 0) {
+        if (data && typeof data === "object") {
           setPcComponents(data);
         } else {
-          setPcComponents(initialPcComponents);
+          setPcComponents({});
         }
       } catch (err) {
-        console.warn("BuildPC: Backend server offline, falling back to static components", err);
-        setPcComponents(initialPcComponents);
+        console.warn("BuildPC: Backend offline", err);
+        setPcComponents({});
       } finally {
         setLoading(false);
       }

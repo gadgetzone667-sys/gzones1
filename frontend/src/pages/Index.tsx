@@ -341,29 +341,35 @@ const Index = () => {
         </div>
 
         {/* Auto Scrolling Track with Drag Support & Mouse Hover */}
-        <div
-          ref={productsRef}
-          onMouseEnter={() => setIsProductsHovered(true)}
-          onMouseLeave={() => {
-            setIsProductsHovered(false);
-            handleProductMouseUp();
-          }}
-          onMouseDown={handleProductMouseDown}
-          onMouseMove={handleProductMouseMove}
-          onMouseUp={handleProductMouseUp}
-          className={`flex gap-5 overflow-x-auto no-scrollbar py-3 px-1 select-none ${
-            isDraggingProducts ? "cursor-grabbing" : "cursor-grab"
-          }`}
-        >
-          {sliderProducts.map((p: Product, idx: number) => (
-            <div
-              key={`${p.id}-${idx}`}
-              className="w-[220px] sm:w-[260px] shrink-0 transition-transform duration-300"
-            >
-              <ProductCard product={p} />
-            </div>
-          ))}
-        </div>
+        {sliderProducts.length === 0 ? (
+          <div className="py-12 text-center text-sm text-muted-foreground bg-slate-900/40 rounded-2xl border border-white/5">
+            Products added via the Admin Dashboard will appear here.
+          </div>
+        ) : (
+          <div
+            ref={productsRef}
+            onMouseEnter={() => setIsProductsHovered(true)}
+            onMouseLeave={() => {
+              setIsProductsHovered(false);
+              handleProductMouseUp();
+            }}
+            onMouseDown={handleProductMouseDown}
+            onMouseMove={handleProductMouseMove}
+            onMouseUp={handleProductMouseUp}
+            className={`flex gap-5 overflow-x-auto no-scrollbar py-3 px-1 select-none ${
+              isDraggingProducts ? "cursor-grabbing" : "cursor-grab"
+            }`}
+          >
+            {sliderProducts.map((p: Product, idx: number) => (
+              <div
+                key={`${p.id}-${idx}`}
+                className="w-[220px] sm:w-[260px] shrink-0 transition-transform duration-300"
+              >
+                <ProductCard product={p} />
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* SECTION 3: SHOP BY CATEGORY */}
@@ -377,29 +383,32 @@ const Index = () => {
         </motion.div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5 sm:gap-4">
-          {categories.map((cat: any, i: number) => (
-            <motion.div
-              key={cat.id}
-              {...fadeUp}
-              transition={{ delay: i * 0.04 }}
-              whileHover={{ y: -6, scale: 1.03 }}
-            >
-              <Link
-                to={`/products?category=${cat.id}`}
-                className="block p-4 sm:p-5 rounded-2xl bg-slate-900/70 border border-white/10 hover:border-purple-500/60 hover:bg-purple-500/15 transition-all text-center group shadow-md hover:shadow-[0_12px_28px_rgba(168,85,247,0.25)] shimmer-card"
+          {categories.map((cat: any, i: number) => {
+            const catCount = products.filter((p: Product) => p.category === cat.id).length;
+            return (
+              <motion.div
+                key={cat.id}
+                {...fadeUp}
+                transition={{ delay: i * 0.04 }}
+                whileHover={{ y: -6, scale: 1.03 }}
               >
-                <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 group-hover:scale-110 group-hover:bg-purple-500/25 transition-all mx-auto flex items-center justify-center mb-2.5">
-                  <Sparkles className="h-5 w-5" />
-                </div>
-                <p className="font-display font-bold text-xs sm:text-sm mb-1 group-hover:text-purple-300 transition-colors truncate">
-                  {cat.name}
-                </p>
-                <p className="text-[11px] sm:text-xs text-muted-foreground group-hover:text-purple-400/80 transition-colors">
-                  {cat.count} items
-                </p>
-              </Link>
-            </motion.div>
-          ))}
+                <Link
+                  to={`/products?category=${cat.id}`}
+                  className="block p-4 sm:p-5 rounded-2xl bg-slate-900/70 border border-white/10 hover:border-purple-500/60 hover:bg-purple-500/15 transition-all text-center group shadow-md hover:shadow-[0_12px_28px_rgba(168,85,247,0.25)] shimmer-card"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 group-hover:scale-110 group-hover:bg-purple-500/25 transition-all mx-auto flex items-center justify-center mb-2.5">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <p className="font-display font-bold text-xs sm:text-sm mb-1 group-hover:text-purple-300 transition-colors truncate">
+                    {cat.name}
+                  </p>
+                  <p className="text-[11px] sm:text-xs text-muted-foreground group-hover:text-purple-400/80 transition-colors">
+                    {catCount} {catCount === 1 ? "item" : "items"}
+                  </p>
+                </Link>
+              </motion.div>
+            );
+          })}
         </div>
       </section>
 
@@ -487,53 +496,59 @@ const Index = () => {
         </div>
 
         {/* Auto Scrolling Track */}
-        <div
-          ref={reviewsRef}
-          onMouseEnter={() => setIsReviewsHovered(true)}
-          onMouseLeave={() => {
-            setIsReviewsHovered(false);
-            setIsDraggingReviews(false);
-          }}
-          onMouseDown={handleReviewMouseDown}
-          onMouseMove={handleReviewMouseMove}
-          onMouseUp={() => setIsDraggingReviews(false)}
-          className={`flex gap-5 overflow-x-auto no-scrollbar py-3 select-none ${
-            isDraggingReviews ? "cursor-grabbing" : "cursor-grab"
-          }`}
-        >
-          {sliderReviews.map((t: Review, idx: number) => (
-            <div
-              key={`${t.id}-${idx}`}
-              className="w-[290px] sm:w-[340px] shrink-0 p-5 rounded-2xl bg-slate-900/80 border border-white/10 hover:border-emerald-500/50 hover:shadow-[0_12px_28px_rgba(16,185,129,0.2)] transition-all flex flex-col justify-between shimmer-card"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex gap-1 text-amber-400">
-                    {Array.from({ length: 5 }).map((_, j) => (
-                      <Star
-                        key={j}
-                        className={`h-4 w-4 ${
-                          j < t.rating ? "fill-amber-400 text-amber-400" : "text-border"
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  <Quote className="h-5 w-5 text-emerald-400/40" />
-                </div>
-                <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed mb-4 italic">
-                  "{t.comment}"
-                </p>
-              </div>
-
-              <div className="pt-3 border-t border-white/10 flex items-center justify-between">
+        {sliderReviews.length === 0 ? (
+          <div className="py-12 text-center text-sm text-muted-foreground bg-slate-900/40 rounded-2xl border border-white/5">
+            Verified customer reviews will appear here as users submit feedback.
+          </div>
+        ) : (
+          <div
+            ref={reviewsRef}
+            onMouseEnter={() => setIsReviewsHovered(true)}
+            onMouseLeave={() => {
+              setIsReviewsHovered(false);
+              setIsDraggingReviews(false);
+            }}
+            onMouseDown={handleReviewMouseDown}
+            onMouseMove={handleReviewMouseMove}
+            onMouseUp={() => setIsDraggingReviews(false)}
+            className={`flex gap-5 overflow-x-auto no-scrollbar py-3 select-none ${
+              isDraggingReviews ? "cursor-grabbing" : "cursor-grab"
+            }`}
+          >
+            {sliderReviews.map((t: Review, idx: number) => (
+              <div
+                key={`${t.id}-${idx}`}
+                className="w-[290px] sm:w-[340px] shrink-0 p-5 rounded-2xl bg-slate-900/80 border border-white/10 hover:border-emerald-500/50 hover:shadow-[0_12px_28px_rgba(16,185,129,0.2)] transition-all flex flex-col justify-between shimmer-card"
+              >
                 <div>
-                  <p className="font-display font-bold text-xs sm:text-sm text-foreground">{t.userName}</p>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex gap-1 text-amber-400">
+                      {Array.from({ length: 5 }).map((_, j) => (
+                        <Star
+                          key={j}
+                          className={`h-4 w-4 ${
+                            j < t.rating ? "fill-amber-400 text-amber-400" : "text-border"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <Quote className="h-5 w-5 text-emerald-400/40" />
+                  </div>
+                  <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed mb-4 italic">
+                    "{t.comment}"
+                  </p>
                 </div>
-                <span className="text-[10px] text-muted-foreground">{t.date || "Recent"}</span>
+
+                <div className="pt-3 border-t border-white/10 flex items-center justify-between">
+                  <div>
+                    <p className="font-display font-bold text-xs sm:text-sm text-foreground">{t.userName}</p>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">{t.date || "Recent"}</span>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

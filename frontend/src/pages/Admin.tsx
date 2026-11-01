@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useProducts } from "../context/ProductContext";
 import { useReviews } from "../context/ReviewContext";
-import { services as fallbackServices, pcComponents as fallbackComponents, type Product } from "../data/products";
+import type { Product } from "../data/products";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -295,13 +295,13 @@ const Admin = () => {
       const res = await fetch("/api/services");
       if (!res.ok) throw new Error("Failed to fetch services");
       const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         setServices(data);
       } else {
-        setServices(fallbackServices as any);
+        setServices([]);
       }
     } catch {
-      setServices(fallbackServices as any);
+      setServices([]);
     } finally {
       setServicesLoading(false);
     }
@@ -313,13 +313,13 @@ const Admin = () => {
       const res = await fetch("/api/components");
       if (!res.ok) throw new Error("Failed to fetch PC components");
       const data = await res.json();
-      if (data && Object.keys(data).length > 0) {
+      if (data && typeof data === "object") {
         setComponentsGrouped(data);
       } else {
-        setComponentsGrouped(fallbackComponents as any);
+        setComponentsGrouped({});
       }
     } catch {
-      setComponentsGrouped(fallbackComponents as any);
+      setComponentsGrouped({});
     } finally {
       setComponentsLoading(false);
     }
