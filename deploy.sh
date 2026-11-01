@@ -122,7 +122,12 @@ if command -v firewall-cmd &>/dev/null && systemctl is-active --quiet firewalld 
         sudo firewall-cmd --permanent --add-service=http --add-service=https >/dev/null 2>&1 || true
         sudo firewall-cmd --reload >/dev/null 2>&1 || true
     fi
-    echo -e "${GREEN}✓ firewalld: HTTP & HTTPS traffic allowed.${NC}"
+    if ! sudo firewall-cmd --list-ports 2>/dev/null | grep -qw 8080/tcp; then
+        echo -e "${YELLOW}Opening Admin Portal Port (8080) in firewalld...${NC}"
+        sudo firewall-cmd --permanent --add-port=8080/tcp >/dev/null 2>&1 || true
+        sudo firewall-cmd --reload >/dev/null 2>&1 || true
+    fi
+    echo -e "${GREEN}✓ firewalld: Ports 80, 443, and 8080 (Admin Portal) allowed.${NC}"
 else
     echo -e "${GREEN}✓ Firewall configuration ready.${NC}"
 fi

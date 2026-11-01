@@ -25,6 +25,12 @@ export interface SsoPayload {
 export const isAdminSubdomain = (): boolean => {
   if (typeof window === "undefined") return false;
   const hostname = window.location.hostname.toLowerCase();
+  const port = window.location.port;
+
+  // Dedicated Admin Port: Port 8080 or Port 8000
+  if (port === "8080" || port === "8000") {
+    return true;
+  }
 
   if (hostname === "admin.gzones.in" || hostname.startsWith("admin.")) {
     return true;
@@ -41,16 +47,21 @@ export const isAdminSubdomain = (): boolean => {
   return false;
 };
 
-/**
- * Returns the public storefront URL for customers.
- * On production: https://gzones.in/
- * On local dev: http://localhost:5173/ (or active dev port)
- */
 export const getStorefrontUrl = (): string => {
+  if (typeof window === "undefined") return "/";
+  const port = window.location.port;
+  if (port === "8080" || port === "8000") {
+    return `${window.location.protocol}//${window.location.hostname}/`;
+  }
   return "/";
 };
 
 export const getAdminPortalUrl = (_token?: string | null, _user?: any): string => {
+  if (typeof window === "undefined") return "/admin";
+  const hostname = window.location.hostname;
+  if (hostname === "157.20.182.32" || hostname === "localhost" || hostname === "127.0.0.1") {
+    return `${window.location.protocol}//${hostname}:8080/`;
+  }
   return "/admin";
 };
 

@@ -33,6 +33,14 @@ else
     exit 1
 fi
 
+# Ensure port 8080 is open in firewall for dedicated Admin Portal
+if command -v firewall-cmd &>/dev/null && systemctl is-active --quiet firewalld 2>/dev/null; then
+    if ! sudo firewall-cmd --list-ports 2>/dev/null | grep -qw 8080/tcp; then
+        sudo firewall-cmd --permanent --add-port=8080/tcp >/dev/null 2>&1 || true
+        sudo firewall-cmd --reload >/dev/null 2>&1 || true
+    fi
+fi
+
 # ------------------------------------------------------------------------------
 # 2. Pull Recent Git Changes
 # ------------------------------------------------------------------------------
