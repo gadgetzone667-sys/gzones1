@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "GadgetZone Enterprise Fullstack Platform",
   "private": true,
+  "workspaces": [
+    "frontend",
+    "server"
+  ],
   "scripts": {
     "dev:frontend": "npm run dev --prefix frontend",
     "dev:server": "npm run dev --prefix server",
