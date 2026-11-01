@@ -33,12 +33,16 @@ else
     exit 1
 fi
 
-# Ensure port 8080 is open in firewall for dedicated Admin Portal
+# Ensure HTTP (80), HTTPS (443), and Admin Portal (8080) are open in firewalld
 if command -v firewall-cmd &>/dev/null && systemctl is-active --quiet firewalld 2>/dev/null; then
-    if ! sudo firewall-cmd --list-ports 2>/dev/null | grep -qw 8080/tcp; then
-        sudo firewall-cmd --permanent --add-port=8080/tcp >/dev/null 2>&1 || true
-        sudo firewall-cmd --reload >/dev/null 2>&1 || true
-    fi
+    sudo firewall-cmd --permanent --add-service=http --add-service=https >/dev/null 2>&1 || true
+    sudo firewall-cmd --permanent --add-port=8080/tcp >/dev/null 2>&1 || true
+    sudo firewall-cmd --reload >/dev/null 2>&1 || true
+fi
+
+# Ensure Let's Encrypt certificates have readable permissions for Docker container
+if [ -d /etc/letsencrypt ]; then
+    chmod -R 755 /etc/letsencrypt/live /etc/letsencrypt/archive 2>/dev/null || true
 fi
 
 # ------------------------------------------------------------------------------
@@ -147,9 +151,11 @@ $COMPOSE ps
 SERVER_IP=$(curl -s https://api.ipify.org 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
 
 echo -e "\n${CYAN}Live Service Status:${NC}"
-echo -e "  • Version:        Commit ${CYAN}${NEW_COMMIT}${NC}"
-echo -e "  • Storefront:     ${GREEN}http://${SERVER_IP}/${NC}"
-echo -e "  • Admin Portal:   ${GREEN}http://${SERVER_IP}/admin${NC}"
-echo -e "  • API Health:     ${GREEN}http://${SERVER_IP}/api/health${NC}"
-echo -e "  • Database:       Continuous (uninterrupted)\n"
+echo -e "  • Version:             Commit ${CYAN}${NEW_COMMIT}${NC}"
+echo -e "  • Storefront (HTTPS):  ${GREEN}https://gzones.in/${NC} (and https://www.gzones.in/)"
+echo -e "  • Admin Portal (HTTPS): ${GREEN}https://admin.gzones.in/${NC}"
+echo -e "  • Direct IP Store:     ${CYAN}http://${SERVER_IP}/${NC}"
+echo -e "  • Direct IP Admin:     ${CYAN}http://${SERVER_IP}:8080/${NC}"
+echo -e "  • API Health:          ${GREEN}http://${SERVER_IP}/api/health${NC}"
+echo -e "  • Database:            Continuous (uninterrupted)\n"
 

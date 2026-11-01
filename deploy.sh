@@ -132,6 +132,11 @@ else
     echo -e "${GREEN}✓ Firewall configuration ready.${NC}"
 fi
 
+# Ensure Let's Encrypt certificates have readable permissions for Docker container
+if [ -d /etc/letsencrypt ]; then
+    chmod -R 755 /etc/letsencrypt/live /etc/letsencrypt/archive 2>/dev/null || true
+fi
+
 # ------------------------------------------------------------------------------
 # 4. Building Containers (Frontend, Backend, Database)
 # ------------------------------------------------------------------------------
@@ -204,10 +209,12 @@ $COMPOSE ps
 SERVER_IP=$(curl -s https://api.ipify.org 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
 
 echo -e "\n${CYAN}Access Details:${NC}"
-echo -e "  🌐 Public Storefront:  ${GREEN}http://${SERVER_IP}/${NC} (or http://localhost)"
-echo -e "  🛡️  Admin Dashboard:   ${GREEN}http://${SERVER_IP}/admin${NC}"
-echo -e "  🔌 Backend API:        ${GREEN}http://${SERVER_IP}/api/health${NC}"
-echo -e "  💾 Database:           MongoDB 7.0 container (data persists in mongodb_data volume)"
+echo -e "  🌐 Public Storefront (HTTPS): ${GREEN}https://gzones.in/${NC} (and https://www.gzones.in/)"
+echo -e "  🛡️  Admin Dashboard (HTTPS):  ${GREEN}https://admin.gzones.in/${NC}"
+echo -e "  🌐 Direct IP Storefront:      ${CYAN}http://${SERVER_IP}/${NC}"
+echo -e "  🛡️  Direct IP Admin Portal:    ${CYAN}http://${SERVER_IP}:8080/${NC}"
+echo -e "  🔌 Backend API:               ${GREEN}http://${SERVER_IP}/api/health${NC}"
+echo -e "  💾 Database:                  MongoDB 7.0 container (data persists in mongodb_data volume)"
 
 echo -e "\n${CYAN}Useful Operations:${NC}"
 echo -e "  • Create Admin Account: ${YELLOW}$COMPOSE exec -it backend node src/utils/createAdmin.js${NC}"
