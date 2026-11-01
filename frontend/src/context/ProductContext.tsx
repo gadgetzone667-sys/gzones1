@@ -1,6 +1,15 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useEffect, type ReactNode } from "react";
 import type { Product } from "../data/products";
 import { useAuth } from "./AuthContext";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import {
+  fetchProductsOnce,
+  forceRefetchProducts,
+  updateProductLocal,
+  deleteProductLocal,
+  addProductLocal,
+  toProduct,
+} from "../store/slices/productSlice";
 
 interface ProductContextType {
   products: Product[];
@@ -13,52 +22,18 @@ interface ProductContextType {
 
 const ProductContext = createContext<ProductContextType | undefined>(undefined);
 
-// Helper: convert MongoDB doc (_id) to our Product interface (id)
-function toProduct(doc: Record<string, unknown>): Product {
-  return {
-    id: String(doc._id || doc.id || ""),
-    name: doc.name as string,
-    category: doc.category as string,
-    price: doc.price as number,
-    originalPrice: doc.originalPrice as number | undefined,
-    image: (doc.image as string) || "",
-    rating: (doc.rating as number) ?? 0,
-    reviewCount: (doc.reviewCount as number) ?? 0,
-    brand: (doc.brand as string) || "",
-    description: (doc.description as string) || "",
-    stock: (doc.stock as number) ?? 0,
-    featured: (doc.featured as boolean) ?? false,
-    specs: doc.specs as Record<string, string> | undefined,
-  };
-}
-
 export function ProductProvider({ children }: { children: ReactNode }) {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const dispatch = useAppDispatch();
+  const products = useAppSelector((state) => state.products.items);
+  const status = useAppSelector((state) => state.products.status);
+  const isLoading = status === "loading" || status === "idle";
   const { getToken } = useAuth();
 
-  const fetchProducts = async () => {
-    try {
-      setIsLoading(true);
-      const res = await fetch("/api/products");
-      if (!res.ok) throw new Error("Failed to fetch products");
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setProducts(data.map(toProduct));
-      } else {
-        setProducts([]);
-      }
-    } catch (err) {
-      console.warn("ProductContext: Could not connect to backend /api/products:", err);
-      setProducts([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // Fetch products from API exactly once on application start via Redux
+  // Zero localStorage or sessionStorage usage - pure Redux state in memory!
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    dispatch(fetchProductsOnce());
+  }, [dispatch]);
 
   const authHeaders = () => ({
     "Content-Type": "application/json",
@@ -72,7 +47,12 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify(product),
     });
     if (!res.ok) throw new Error("Failed to add product");
-    await fetchProducts();
+    const created = await res.json();
+    if (created && (created._id || created.id)) {
+      dispatch(addProductLocal(toProduct(created)));
+    } else {
+      await dispatch(forceRefetchProducts());
+    }
   };
 
   const updateProduct = async (id: string, updates: Partial<Product>) => {
@@ -82,9 +62,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify(updates),
     });
     if (!res.ok) throw new Error("Failed to update product");
-    setProducts(prev =>
-      prev.map(p => (p.id === id ? { ...p, ...updates } : p))
-    );
+    dispatch(updateProductLocal({ id, updates }));
   };
 
   const deleteProduct = async (id: string) => {
@@ -93,18 +71,24 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       headers: authHeaders(),
     });
     if (!res.ok) throw new Error("Failed to delete product");
-    setProducts(prev => prev.filter(p => p.id !== id));
+    dispatch(deleteProductLocal(id));
+  };
+
+  const refetch = async () => {
+    await dispatch(forceRefetchProducts());
   };
 
   return (
-    <ProductContext.Provider value={{
-      products,
-      isLoading,
-      updateProduct,
-      deleteProduct,
-      addProduct,
-      refetch: fetchProducts,
-    }}>
+    <ProductContext.Provider
+      value={{
+        products,
+        isLoading,
+        updateProduct,
+        deleteProduct,
+        addProduct,
+        refetch,
+      }}
+    >
       {children}
     </ProductContext.Provider>
   );
@@ -112,7 +96,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
 
 export function useProducts() {
   const context = useContext(ProductContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useProducts must be used within a ProductProvider");
   }
   return context;
