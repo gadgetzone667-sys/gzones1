@@ -143,3 +143,4 @@ export const productSlice = createSlice({
 export const { setProducts, addProductLocal, updateProductLocal, deleteProductLocal } = productSlice.actions;
 
 export default productSlice.reducer;
+
