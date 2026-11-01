@@ -52,12 +52,12 @@ PREV_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 echo -e "• Current Git Branch: ${CYAN}${CURRENT_BRANCH}${NC}"
 echo -e "• Current Commit:     ${CYAN}${PREV_COMMIT}${NC}"
 
-# Fetch and pull recent changes
+# Fetch and cleanly sync with latest remote changes (prevents local merge conflicts on server)
 git fetch origin "${CURRENT_BRANCH}"
-PULL_OUTPUT=$(git pull origin "${CURRENT_BRANCH}")
+git reset --hard "origin/${CURRENT_BRANCH}"
 NEW_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
-echo -e "${GREEN}✓ Git Pull Output: ${PULL_OUTPUT}${NC}"
+echo -e "${GREEN}✓ Successfully synced with origin/${CURRENT_BRANCH} at commit ${NEW_COMMIT}${NC}"
 if [ "${PREV_COMMIT}" != "${NEW_COMMIT}" ]; then
     echo -e "${GREEN}✓ Updated from commit ${PREV_COMMIT} to ${NEW_COMMIT}${NC}"
     echo -e "\nRecent commit details:"
