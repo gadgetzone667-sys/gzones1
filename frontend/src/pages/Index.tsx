@@ -14,7 +14,6 @@ import {
   Gauge
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { categories } from "../data/products";
 import { useProducts } from "../context/ProductContext";
 import { useReviews } from "../context/ReviewContext";
 import ProductCard from "../components/ProductCard";
@@ -35,14 +34,10 @@ const Index = () => {
   const featuredProducts = products.filter((p: Product) => p.featured);
   const displayProducts = featuredProducts.length > 0 ? featuredProducts : products.slice(0, 8);
 
-  // Triple the array to provide an uninterrupted, seamless infinite loop
-  const sliderProducts = [
-    ...displayProducts,
-    ...displayProducts,
-    ...displayProducts,
-  ];
+  // Display only genuine unique products without artificial duplication
+  const sliderProducts = displayProducts;
 
-  const sliderReviews = reviews.length > 0 ? [...reviews, ...reviews, ...reviews] : [];
+  const sliderReviews = reviews;
 
   // ==========================================
   // FEATURED PRODUCTS SLIDER STATE & LOGIC
@@ -55,25 +50,23 @@ const Index = () => {
   const dragScrollLeft = useRef(0);
   const currentScrollRef = useRef(0);
 
-  // High-performance requestAnimationFrame infinite scroll with seamless wrap-around
+  // Auto scroll only when there are multiple products that overflow the container
   useEffect(() => {
     let animId: number;
     const el = productsRef.current;
-    if (!el) return;
+    if (!el || sliderProducts.length <= 3) return;
 
     const scrollStep = () => {
       if (productsRef.current && !isProductsHovered && !isDraggingProducts) {
         currentScrollRef.current += sliderSpeed;
 
-        const totalWidth = productsRef.current.scrollWidth;
-        const oneThird = totalWidth / 3;
-
-        // When past the second set, subtract one set seamlessly (100% invisible reset)
-        if (oneThird > 0 && currentScrollRef.current >= oneThird * 2) {
-          currentScrollRef.current -= oneThird;
+        const maxScroll = productsRef.current.scrollWidth - productsRef.current.clientWidth;
+        if (maxScroll > 0) {
+          if (currentScrollRef.current >= maxScroll) {
+            currentScrollRef.current = 0;
+          }
+          productsRef.current.scrollLeft = currentScrollRef.current;
         }
-
-        productsRef.current.scrollLeft = currentScrollRef.current;
       }
       animId = requestAnimationFrame(scrollStep);
     };
@@ -123,19 +116,18 @@ const Index = () => {
   useEffect(() => {
     let animId: number;
     const el = reviewsRef.current;
-    if (!el) return;
+    if (!el || sliderReviews.length <= 3) return;
 
     const scrollStep = () => {
       if (reviewsRef.current && !isReviewsHovered && !isDraggingReviews) {
         reviewScrollRef.current += 1.4;
-        const totalWidth = reviewsRef.current.scrollWidth;
-        const oneThird = totalWidth / 3;
-
-        if (oneThird > 0 && reviewScrollRef.current >= oneThird * 2) {
-          reviewScrollRef.current -= oneThird;
+        const maxScroll = reviewsRef.current.scrollWidth - reviewsRef.current.clientWidth;
+        if (maxScroll > 0) {
+          if (reviewScrollRef.current >= maxScroll) {
+            reviewScrollRef.current = 0;
+          }
+          reviewsRef.current.scrollLeft = reviewScrollRef.current;
         }
-
-        reviewsRef.current.scrollLeft = reviewScrollRef.current;
       }
       animId = requestAnimationFrame(scrollStep);
     };
@@ -360,9 +352,9 @@ const Index = () => {
               isDraggingProducts ? "cursor-grabbing" : "cursor-grab"
             }`}
           >
-            {sliderProducts.map((p: Product, idx: number) => (
+            {sliderProducts.map((p: Product) => (
               <div
-                key={`${p.id}-${idx}`}
+                key={p.id}
                 className="w-[220px] sm:w-[260px] shrink-0 transition-transform duration-300"
               >
                 <ProductCard product={p} />
@@ -372,47 +364,7 @@ const Index = () => {
         )}
       </section>
 
-      {/* SECTION 3: SHOP BY CATEGORY */}
-      <section className="section-highlight p-6 sm:p-8 md:p-10 border-purple-500/25 shadow-[0_20px_50px_rgba(168,85,247,0.12)]">
-        <motion.div {...fadeUp} className="text-center mb-8">
-          <span className="inline-block px-3.5 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-300 text-xs font-bold uppercase tracking-wider mb-2 shadow-[0_0_15px_rgba(168,85,247,0.25)]">
-            EXPLORE CATALOG
-          </span>
-          <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold mb-1">Shop by Category</h2>
-          <p className="text-muted-foreground text-xs sm:text-sm">Explore our specialized hardware departments</p>
-        </motion.div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5 sm:gap-4">
-          {categories.map((cat: any, i: number) => {
-            const catCount = products.filter((p: Product) => p.category === cat.id).length;
-            return (
-              <motion.div
-                key={cat.id}
-                {...fadeUp}
-                transition={{ delay: i * 0.04 }}
-                whileHover={{ y: -6, scale: 1.03 }}
-              >
-                <Link
-                  to={`/products?category=${cat.id}`}
-                  className="block p-4 sm:p-5 rounded-2xl bg-slate-900/70 border border-white/10 hover:border-purple-500/60 hover:bg-purple-500/15 transition-all text-center group shadow-md hover:shadow-[0_12px_28px_rgba(168,85,247,0.25)] shimmer-card"
-                >
-                  <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 group-hover:scale-110 group-hover:bg-purple-500/25 transition-all mx-auto flex items-center justify-center mb-2.5">
-                    <Sparkles className="h-5 w-5" />
-                  </div>
-                  <p className="font-display font-bold text-xs sm:text-sm mb-1 group-hover:text-purple-300 transition-colors truncate">
-                    {cat.name}
-                  </p>
-                  <p className="text-[11px] sm:text-xs text-muted-foreground group-hover:text-purple-400/80 transition-colors">
-                    {catCount} {catCount === 1 ? "item" : "items"}
-                  </p>
-                </Link>
-              </motion.div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* SECTION 4: FREE SHIPPING & TRUST BADGES */}
+      {/* SECTION 3: FREE SHIPPING & TRUST BADGES */}
       <section className="section-highlight p-5 sm:p-7 md:p-9 border-indigo-500/25 shadow-[0_20px_50px_rgba(99,102,241,0.12)]">
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-5 text-center">
           {[
@@ -517,7 +469,7 @@ const Index = () => {
           >
             {sliderReviews.map((t: Review, idx: number) => (
               <div
-                key={`${t.id}-${idx}`}
+                key={t.id || idx}
                 className="w-[290px] sm:w-[340px] shrink-0 p-5 rounded-2xl bg-slate-900/80 border border-white/10 hover:border-emerald-500/50 hover:shadow-[0_12px_28px_rgba(16,185,129,0.2)] transition-all flex flex-col justify-between shimmer-card"
               >
                 <div>
