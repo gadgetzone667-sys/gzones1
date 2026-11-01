@@ -33,15 +33,16 @@ function sanitizeError(error) {
   return message.replace(/\/\/[^:]+:[^@]+@/, "//***:***@");
 }
 
-let isConnecting = false;
+// Cached promise for serverless environments (prevents duplicate connections & race conditions)
+let cachedPromise = null;
 
 export async function connectDB() {
-  // If already connected or connecting, return immediately
   if (mongoose.connection.readyState === 1) {
     return mongoose.connection;
   }
-  if (isConnecting) {
-    return;
+
+  if (cachedPromise) {
+    return cachedPromise;
   }
 
   const rawUri = process.env.MONGODB_URI || process.env.MONGO_URI || DEFAULT_ATLAS_URI;
@@ -52,22 +53,25 @@ export async function connectDB() {
     connectionUri = connectionUri.replace(":<", ":").replace(">@", "@");
   }
 
-  isConnecting = true;
-  try {
-    await mongoose.connect(connectionUri, {
-      serverSelectionTimeoutMS: 5000,
+  cachedPromise = mongoose
+    .connect(connectionUri, {
+      serverSelectionTimeoutMS: 8000,
       socketTimeoutMS: 45000,
       family: 4, // Force IPv4 to prevent IPv6 DNS delays
+      bufferCommands: true,
+    })
+    .then((m) => {
+      console.log("MongoDB connected successfully");
+      return m.connection;
+    })
+    .catch((error) => {
+      cachedPromise = null;
+      const safeMessage = sanitizeError(error);
+      console.error("❌ MongoDB connection error:", safeMessage);
+      throw new Error(safeMessage);
     });
-    console.log("MongoDB connected successfully");
-    return mongoose.connection;
-  } catch (error) {
-    const safeMessage = sanitizeError(error);
-    console.error("❌ MongoDB connection error:", safeMessage);
-    throw new Error(safeMessage);
-  } finally {
-    isConnecting = false;
-  }
+
+  return cachedPromise;
 }
 
 export default connectDB;

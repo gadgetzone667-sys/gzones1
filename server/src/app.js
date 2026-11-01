@@ -73,4 +73,13 @@ app.get("/api/health", (_req, res) =>
   })
 );
 
+// Global fallback error handler
+app.use((err, _req, res, _next) => {
+  console.error("Unhandled API error:", err);
+  res.status(500).json({
+    message: "Server error.",
+    error: err.message || "Unknown error",
+  });
+});
+
 export default app;
