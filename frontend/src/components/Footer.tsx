@@ -78,6 +78,9 @@ const Footer = () => (
             <li>
               <Link to="/contact" className="hover:text-sky-300 transition-colors">Contact Support</Link>
             </li>
+            <li>
+              <Link to="/terms" className="hover:text-sky-300 transition-colors">Terms & Conditions</Link>
+            </li>
           </ul>
         </div>
 
@@ -135,7 +138,13 @@ const Footer = () => (
 
       {/* Minimal Bottom Bar */}
       <div className="border-t border-zinc-800/60 pt-2.5 text-center text-[10px] text-zinc-400 flex flex-col sm:flex-row items-center justify-between gap-1">
-        <p>© 2026 GADGET ZONE. All rights reserved.</p>
+        <div className="flex items-center gap-2">
+          <p>© 2026 GADGET ZONE. All rights reserved.</p>
+          <span className="text-zinc-600">•</span>
+          <Link to="/terms" className="text-zinc-400 hover:text-sky-300 transition-colors underline-offset-2 hover:underline">
+            Terms & Conditions
+          </Link>
+        </div>
         <p className="text-zinc-400">Crafted for gamers & PC enthusiasts</p>
       </div>
     </div>

@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { motion } from "framer-motion";
-import { Package, Clock, CheckCircle2, Truck, XCircle, ChevronRight, ShoppingBag, FileSpreadsheet } from "lucide-react";
+import { Package, Clock, CheckCircle2, Truck, XCircle, ChevronRight, ShoppingBag, FileSpreadsheet, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { toast } from "sonner";
-import { getLocalOrders, downloadOrderExcel, type Order } from "../lib/orderExport";
+import { downloadOrderPdf, downloadOrderExcel, type Order } from "../lib/orderExport";
 
 const statusConfig = {
   Pending: { icon: Clock, color: "text-amber-500", bg: "bg-amber-500/10", step: 1 },
@@ -31,41 +31,23 @@ const Orders = () => {
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        const local = getLocalOrders();
         let serverOrders: Order[] = [];
 
         if (token) {
           try {
             const res = await fetch("/api/orders/my-orders", {
-              headers: { "Authorization": `Bearer ${token}` }
+              headers: { Authorization: `Bearer ${token}` },
             });
             if (res.ok) {
               const data = await res.json();
               if (Array.isArray(data)) serverOrders = data;
             }
           } catch (e) {
-            console.warn("Server orders unreachable, reading local orders:", e);
+            console.warn("Server orders unreachable:", e);
           }
         }
 
-        const mergedMap = new Map<string, Order>();
-        serverOrders.forEach((o) => {
-          const key = o.trackingId || o._id;
-          if (key) mergedMap.set(key, o);
-        });
-
-        // Filter local orders relevant to this user or all if guest/admin
-        local.forEach((o) => {
-          const key = o.trackingId || o._id;
-          if (key && !mergedMap.has(key)) {
-            // Include order if user matches or email matches or guest
-            if (!user || !o.userId || o.userId === "guest" || o.userId === user.id || o.customer?.email === user.email) {
-              mergedMap.set(key, o);
-            }
-          }
-        });
-
-        const all = Array.from(mergedMap.values()).sort(
+        const all = [...serverOrders].sort(
           (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
         );
         setOrders(all);
@@ -231,11 +213,21 @@ const Orders = () => {
                             type="button"
                             variant="outline"
                             size="sm"
-                            onClick={() => downloadOrderExcel(order)}
+                            onClick={() => downloadOrderPdf(order)}
                             className="h-10 border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 font-bold rounded-xl flex items-center gap-1.5"
-                            title="Download invoice in Excel format"
+                            title="Download tax invoice in PDF format"
                           >
-                            <FileSpreadsheet className="h-4 w-4" /> Download Invoice (Excel)
+                            <FileText className="h-4 w-4" /> Download PDF
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => downloadOrderExcel(order)}
+                            className="h-10 border-border hover:bg-muted text-muted-foreground hover:text-foreground font-semibold rounded-xl flex items-center gap-1.5"
+                            title="Download order details in Excel format"
+                          >
+                            <FileSpreadsheet className="h-4 w-4" /> Excel
                           </Button>
                           <Button variant="outline" size="sm" className="h-10 border-border hover:bg-muted font-bold rounded-xl" asChild>
                              <Link to={`/product/${order.items[0]?.productId || ''}`}>

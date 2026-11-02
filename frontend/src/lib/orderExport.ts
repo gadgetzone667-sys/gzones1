@@ -1,3 +1,5 @@
+import { jsPDF } from "jspdf";
+
 export interface OrderItem {
   productId: string;
   name: string;
@@ -66,22 +68,6 @@ export interface Order {
 }
 
 const ORDERS_STORAGE_KEY = "GadgetZone_all_orders";
-const SHARED_COOKIE_KEY = "gz_shared_orders_data";
-
-// Shared cookie helpers for cross-subdomain access (gzones.in <-> admin.gzones.in)
-function getSharedCookie(name: string): string | null {
-  if (typeof document === "undefined") return null;
-  const match = document.cookie.match(new RegExp("(?:^|;\\s*)" + name + "=([^;]*)"));
-  return match ? decodeURIComponent(match[1]) : null;
-}
-
-function setSharedCookie(name: string, value: string, days = 30): void {
-  if (typeof document === "undefined") return;
-  const expires = new Date(Date.now() + days * 864e5).toUTCString();
-  const hostname = window.location.hostname.toLowerCase();
-  const domainPart = hostname.includes("gzones.in") ? "; domain=.gzones.in" : "";
-  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/${domainPart}; SameSite=Lax`;
-}
 
 // Helper to escape values for CSV / Excel
 function escapeCsv(value: any): string {
@@ -90,75 +76,19 @@ function escapeCsv(value: any): string {
   return `"${str}"`;
 }
 
-// Retrieve local orders (combines localStorage and cross-subdomain shared cookie)
+// Retrieve local orders - Orders are now strictly managed by MongoDB backend
 export function getLocalOrders(): Order[] {
-  const mergedMap = new Map<string, Order>();
-
   try {
-    const raw = localStorage.getItem(ORDERS_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        parsed.forEach((o: Order) => {
-          const key = o.orderId || o.trackingId || o._id;
-          if (key) mergedMap.set(key, o);
-        });
-      }
-    }
+    localStorage.removeItem(ORDERS_STORAGE_KEY);
   } catch {}
-
-  // Read cross-subdomain cookie if available
-  try {
-    const cookieRaw = getSharedCookie(SHARED_COOKIE_KEY);
-    if (cookieRaw) {
-      const parsedCookie = JSON.parse(cookieRaw);
-      if (Array.isArray(parsedCookie)) {
-        parsedCookie.forEach((o: Order) => {
-          const key = o.orderId || o.trackingId || o._id;
-          if (key && !mergedMap.has(key)) {
-            mergedMap.set(key, o);
-          }
-        });
-      }
-    }
-  } catch {}
-
-  const orders = Array.from(mergedMap.values());
-  return orders;
+  return [];
 }
 
-// Save or update an order in local storage and cross-subdomain cookie
-export function saveLocalOrder(order: Order): void {
+// Deprecated: Orders are stored directly in MongoDB via /api/orders
+export function saveLocalOrder(_order: Order): void {
   try {
-    const current = getLocalOrders();
-    const existingIndex = current.findIndex(
-      (o) =>
-        (order._id && o._id === order._id) ||
-        (order.orderId && o.orderId === order.orderId) ||
-        (order.trackingId && o.trackingId === order.trackingId)
-    );
-
-    if (existingIndex >= 0) {
-      current[existingIndex] = { ...current[existingIndex], ...order };
-    } else {
-      current.unshift(order);
-    }
-
-    localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(current));
-
-    // Save recent orders to domain-level cookie so admin.gzones.in instantly receives it
-    try {
-      setSharedCookie(SHARED_COOKIE_KEY, JSON.stringify(current.slice(0, 10)));
-    } catch {}
-
-    // Post to storage bridge if available
-    const iframe = document.getElementById("gz-storage-bridge-iframe") as HTMLIFrameElement | null;
-    if (iframe?.contentWindow) {
-      iframe.contentWindow.postMessage({ type: "GZ_SAVE_LOCAL_ORDER", order }, "*");
-    }
-  } catch (err) {
-    console.warn("Failed to persist order in localStorage:", err);
-  }
+    localStorage.removeItem(ORDERS_STORAGE_KEY);
+  } catch {}
 }
 
 // Cross-domain storage bridge initiator for admin subdomain
@@ -241,59 +171,32 @@ export function initCrossDomainOrderBridge(callback?: (orders: Order[]) => void)
   };
 }
 
-// Update order status in local storage
+// Order status updates are performed directly via backend API (/api/orders/:id/status)
 export function updateLocalOrderStatus(
-  orderId: string,
-  status: string,
-  trackingStage?: number
+  _orderId: string,
+  _status: string,
+  _trackingStage?: number
 ): void {
   try {
-    const current = getLocalOrders();
-    const updated = current.map((o) =>
-      o._id === orderId || o.orderId === orderId || o.trackingId === orderId
-        ? {
-            ...o,
-            orderStatus: status as any,
-            status: status as any,
-            trackingStage: trackingStage !== undefined ? trackingStage : o.trackingStage,
-          }
-        : o
-    );
-    localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(updated));
-  } catch (err) {
-    console.warn("Failed to update order status in localStorage:", err);
-  }
+    localStorage.removeItem(ORDERS_STORAGE_KEY);
+  } catch {}
 }
 
-// Update payment status in local storage
+// Payment status updates are performed directly via backend API (/api/orders/:id/payment-status)
 export function updateLocalPaymentStatus(
-  orderId: string,
-  paymentStatus: "Pending" | "Paid" | "Failed" | "Refunded"
+  _orderId: string,
+  _paymentStatus: "Pending" | "Paid" | "Failed" | "Refunded"
 ): void {
   try {
-    const current = getLocalOrders();
-    const updated = current.map((o) =>
-      o._id === orderId || o.orderId === orderId || o.trackingId === orderId
-        ? { ...o, paymentStatus }
-        : o
-    );
-    localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(updated));
-  } catch (err) {
-    console.warn("Failed to update payment status in localStorage:", err);
-  }
+    localStorage.removeItem(ORDERS_STORAGE_KEY);
+  } catch {}
 }
 
-// Delete an order from local storage
-export function deleteLocalOrder(orderId: string): void {
+// Order deletions are performed directly via backend API (/api/orders/:id)
+export function deleteLocalOrder(_orderId: string): void {
   try {
-    const current = getLocalOrders();
-    const updated = current.filter(
-      (o) => o._id !== orderId && o.orderId !== orderId && o.trackingId !== orderId
-    );
-    localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(updated));
-  } catch (err) {
-    console.warn("Failed to delete order from localStorage:", err);
-  }
+    localStorage.removeItem(ORDERS_STORAGE_KEY);
+  } catch {}
 }
 
 // Download Excel CSV for a single individual order
@@ -547,4 +450,423 @@ export function printOrderInvoice(order: Order): void {
     </html>
   `);
   printWindow.document.close();
+}
+
+/**
+ * Convert numeric amounts to words for formal Indian Tax Invoices
+ */
+function numberToWords(num: number): string {
+  const single = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+  const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  function convertTwoDigits(n: number): string {
+    if (n === 0) return '';
+    if (n < 10) return single[n];
+    if (n < 20) return teens[n - 10];
+    const unit = n % 10;
+    return tens[Math.floor(n / 10)] + (unit ? ' ' + single[unit] : '');
+  }
+
+  function convertThreeDigits(n: number): string {
+    const hundred = Math.floor(n / 100);
+    const rest = n % 100;
+    let res = '';
+    if (hundred) res += single[hundred] + ' Hundred';
+    if (hundred && rest) res += ' and ';
+    if (rest) res += convertTwoDigits(rest);
+    return res;
+  }
+
+  const intNum = Math.floor(Math.abs(num));
+  if (intNum === 0) return 'Zero Rupees Only';
+
+  const crore = Math.floor(intNum / 10000000);
+  const lakh = Math.floor((intNum % 10000000) / 100000);
+  const thousand = Math.floor((intNum % 100000) / 1000);
+  const hundredPart = intNum % 1000;
+
+  const parts: string[] = [];
+  if (crore) parts.push(convertTwoDigits(crore) + ' Crore');
+  if (lakh) parts.push(convertTwoDigits(lakh) + ' Lakh');
+  if (thousand) parts.push(convertTwoDigits(thousand) + ' Thousand');
+  if (hundredPart) parts.push(convertThreeDigits(hundredPart));
+
+  return parts.join(' ') + ' Rupees Only';
+}
+
+/**
+ * Generate and download high-resolution GST Tax Invoice PDF
+ */
+export function downloadOrderPdf(order: Order): void {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const pageWidth = 210;
+  const margin = 14;
+  const contentWidth = pageWidth - margin * 2; // 182mm
+
+  // Color Palette
+  const primaryColor: [number, number, number] = [14, 116, 144]; // Deep cyan #0e7490
+  const darkColor: [number, number, number] = [15, 23, 42];      // Slate 900 #0f172a
+  const mutedColor: [number, number, number] = [100, 116, 139];  // Slate 500 #64748b
+  const lightBg: [number, number, number] = [248, 250, 252];     // Slate 50
+  const borderLight: [number, number, number] = [226, 232, 240]; // Slate 200
+
+  // 1. Top Decorative Brand Bar
+  doc.setFillColor(...primaryColor);
+  doc.rect(margin, 12, contentWidth, 2, 'F');
+
+  // Brand Name
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(22);
+  doc.setTextColor(...primaryColor);
+  doc.text('GADGET ZONE', margin, 24);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(...mutedColor);
+  doc.text('PREMIUM GAMING PCs & HARDWARE HUB', margin, 29);
+
+  // Right Side: Tax Invoice Title & Number
+  const displayId = order.orderId || order._id || 'GZ-ORDER';
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(...darkColor);
+  doc.text('TAX INVOICE', pageWidth - margin, 23, { align: 'right' });
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(...primaryColor);
+  doc.text(`INVOICE NO: INV-${displayId}`, pageWidth - margin, 29, { align: 'right' });
+
+  // 2. Company Info & Metadata Row
+  let currentY = 36;
+  doc.setDrawColor(...borderLight);
+  doc.setLineWidth(0.3);
+  doc.line(margin, currentY, pageWidth - margin, currentY);
+
+  currentY += 5;
+
+  // Supplier / Seller Info (Left)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...darkColor);
+  doc.text('SOLD BY / SELLER DETAILS:', margin, currentY);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.text('GADGET ZONE (Retail & Tech Hub)', margin, currentY + 4.5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...mutedColor);
+  doc.text('No.5, 1st Street, Jayaram Nagar, Nerkundram', margin, currentY + 8.5);
+  doc.text('Chennai, Tamil Nadu - 600107, India', margin, currentY + 12);
+  doc.text('Phone: +91 9345600128 | Email: gadgetzone667@gmail.com', margin, currentY + 15.5);
+  doc.text('GSTIN: 33AAACG1234F1Z5  |  State: Tamil Nadu (Code: 33)', margin, currentY + 19);
+
+  // Invoice & Order Meta (Right Box)
+  const metaX = 125;
+  doc.setFillColor(...lightBg);
+  doc.roundedRect(metaX - 2, currentY - 1, pageWidth - margin - metaX + 2, 22, 1.5, 1.5, 'F');
+  doc.setDrawColor(...borderLight);
+  doc.roundedRect(metaX - 2, currentY - 1, pageWidth - margin - metaX + 2, 22, 1.5, 1.5, 'S');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...darkColor);
+
+  const orderDate = order.createdAt
+    ? new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+    : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  doc.text('Date of Invoice:', metaX, currentY + 3.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text(orderDate, pageWidth - margin - 2, currentY + 3.5, { align: 'right' });
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Order ID:', metaX, currentY + 7.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`#${displayId}`, pageWidth - margin - 2, currentY + 7.5, { align: 'right' });
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Tracking ID:', metaX, currentY + 11.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text(order.trackingId || 'TRK-PENDING', pageWidth - margin - 2, currentY + 11.5, { align: 'right' });
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Payment Method:', metaX, currentY + 15.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text(order.paymentMethod || 'Cash on Delivery (COD)', pageWidth - margin - 2, currentY + 15.5, { align: 'right' });
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Payment Status:', metaX, currentY + 19.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text(order.paymentStatus || 'Pending on Delivery', pageWidth - margin - 2, currentY + 19.5, { align: 'right' });
+
+  // 3. Buyer / Delivery Destination Info Box
+  currentY += 26;
+  doc.setFillColor(...lightBg);
+  doc.roundedRect(margin, currentY, contentWidth, 18, 1.5, 1.5, 'F');
+  doc.setDrawColor(...borderLight);
+  doc.roundedRect(margin, currentY, contentWidth, 18, 1.5, 1.5, 'S');
+
+  const customerName = order.customer?.name || order.shippingInfo?.name || 'Customer';
+  const customerPhone = order.customer?.phone || order.shippingInfo?.phone || 'N/A';
+  const customerEmail = order.customer?.email || 'N/A';
+  const shippingAddress = order.shippingAddress?.address || order.shippingInfo?.address || 'Standard Shipping Address';
+  const shippingState = order.shippingAddress?.state || order.shippingInfo?.state || 'Tamil Nadu';
+  const shippingCity = order.shippingAddress?.city || order.shippingInfo?.city || 'Chennai';
+  const shippingPin = order.shippingAddress?.pincode || order.shippingInfo?.pincode || '';
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...darkColor);
+  doc.text('BILL TO & SHIP TO (CUSTOMER DETAILS):', margin + 3, currentY + 4);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.text(customerName, margin + 3, currentY + 8.5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...mutedColor);
+  const cleanAddr = `${shippingAddress}${shippingCity && !shippingAddress.includes(shippingCity) ? ', ' + shippingCity : ''} - ${shippingPin}`;
+  const splitAddr = doc.splitTextToSize(cleanAddr, 105);
+  doc.text(splitAddr, margin + 3, currentY + 12.5);
+
+  // Contact details on the right of Bill To box
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...darkColor);
+  doc.text('Contact Mobile:', margin + 115, currentY + 4);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...mutedColor);
+  doc.text(customerPhone, margin + 145, currentY + 4);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...darkColor);
+  doc.text('Email Address:', margin + 115, currentY + 8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...mutedColor);
+  doc.text(customerEmail, margin + 145, currentY + 8.5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...darkColor);
+  doc.text('Place of Supply:', margin + 115, currentY + 12.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...mutedColor);
+  const isIntraState = shippingState.toLowerCase().includes('tamil nadu') || shippingState.toLowerCase().includes('tn');
+  doc.text(`${shippingState} ${isIntraState ? '(State Code: 33)' : ''}`, margin + 145, currentY + 12.5);
+
+  // 4. Products Table
+  currentY += 23;
+
+  const colX = {
+    idx: margin + 2,
+    desc: margin + 10,
+    hsn: margin + 85,
+    qty: margin + 107,
+    unitBase: margin + 124,
+    gstRate: margin + 146,
+    total: pageWidth - margin - 2
+  };
+
+  doc.setFillColor(...primaryColor);
+  doc.roundedRect(margin, currentY, contentWidth, 7, 1, 1, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(255, 255, 255);
+  doc.text('#', colX.idx, currentY + 4.8);
+  doc.text('DESCRIPTION OF GOODS', colX.desc, currentY + 4.8);
+  doc.text('HSN/SAC', colX.hsn, currentY + 4.8);
+  doc.text('QTY', colX.qty, currentY + 4.8, { align: 'center' });
+  doc.text('TAXABLE (Rs.)', colX.unitBase, currentY + 4.8, { align: 'right' });
+  doc.text('GST (18%)', colX.gstRate, currentY + 4.8, { align: 'right' });
+  doc.text('TOTAL (Rs.)', colX.total, currentY + 4.8, { align: 'right' });
+
+  currentY += 7;
+
+  // Items Rows
+  const items = order.items && order.items.length > 0 ? order.items : [
+    { productId: "1", name: 'Hardware Component', price: order.grandTotal || 0, quantity: 1 }
+  ];
+
+  const grandTotal = order.grandTotal ?? order.totalPrice ?? 0;
+
+  items.forEach((item, index) => {
+    const qty = item.quantity || 1;
+    const itemTotalGross = (item.price || 0) * qty;
+
+    // Proper Indian GST inclusive reverse calculation:
+    // Taxable Base = Total / 1.18
+    const itemTaxable = Math.round((itemTotalGross / 1.18) * 100) / 100;
+    const itemGst = Math.round((itemTotalGross - itemTaxable) * 100) / 100;
+
+    // Alternating row background
+    if (index % 2 === 1) {
+      doc.setFillColor(...lightBg);
+      doc.rect(margin, currentY, contentWidth, 8, 'F');
+    }
+
+    doc.setDrawColor(...borderLight);
+    doc.line(margin, currentY + 8, pageWidth - margin, currentY + 8);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...darkColor);
+
+    doc.text(String(index + 1), colX.idx, currentY + 5.2);
+
+    // Truncate or wrap item name if long
+    const cleanName = item.name || 'Component';
+    const splitName = doc.splitTextToSize(cleanName, 72);
+    doc.text(splitName[0], colX.desc, currentY + 5.2);
+
+    // HSN Code
+    const hsn = cleanName.toLowerCase().includes('headphone') || cleanName.toLowerCase().includes('audio') ? '8518' : '8471';
+    doc.setTextColor(...mutedColor);
+    doc.text(hsn, colX.hsn, currentY + 5.2);
+
+    // Qty
+    doc.setTextColor(...darkColor);
+    doc.text(String(qty), colX.qty, currentY + 5.2, { align: 'center' });
+
+    // Taxable Value
+    doc.text(itemTaxable.toLocaleString('en-IN', { minimumFractionDigits: 2 }), colX.unitBase, currentY + 5.2, { align: 'right' });
+
+    // GST Amount
+    doc.text(itemGst.toLocaleString('en-IN', { minimumFractionDigits: 2 }), colX.gstRate, currentY + 5.2, { align: 'right' });
+
+    // Total Amount
+    doc.setFont('helvetica', 'bold');
+    doc.text(itemTotalGross.toLocaleString('en-IN', { minimumFractionDigits: 2 }), colX.total, currentY + 5.2, { align: 'right' });
+
+    currentY += 8;
+  });
+
+  // Accurate overall GST Calculation matching Grand Total
+  const totalTaxableAmount = Math.round((grandTotal / 1.18) * 100) / 100;
+  const totalGstAmount = Math.round((grandTotal - totalTaxableAmount) * 100) / 100;
+
+  let cgstAmount = 0;
+  let sgstAmount = 0;
+  let igstAmount = 0;
+
+  if (isIntraState) {
+    cgstAmount = Math.round((totalGstAmount / 2) * 100) / 100;
+    sgstAmount = Math.round((totalGstAmount - cgstAmount) * 100) / 100;
+  } else {
+    igstAmount = totalGstAmount;
+  }
+
+  // 5. GST Breakdown & Financial Totals Box
+  currentY += 4;
+  const summaryBoxY = currentY;
+
+  // Left Side: Amount in Words & Terms Box
+  doc.setFillColor(...lightBg);
+  doc.roundedRect(margin, summaryBoxY, 100, 42, 1.5, 1.5, 'F');
+  doc.setDrawColor(...borderLight);
+  doc.roundedRect(margin, summaryBoxY, 100, 42, 1.5, 1.5, 'S');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...darkColor);
+  doc.text('TOTAL AMOUNT IN WORDS:', margin + 3, summaryBoxY + 5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...mutedColor);
+  const words = numberToWords(grandTotal);
+  const splitWords = doc.splitTextToSize(words, 94);
+  doc.text(splitWords, margin + 3, summaryBoxY + 9.5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...darkColor);
+  doc.text('TERMS & CONDITIONS:', margin + 3, summaryBoxY + 21);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.8);
+  doc.setTextColor(...mutedColor);
+  doc.text('1. 7 Days Replacement guarantee for manufacturing defects.', margin + 3, summaryBoxY + 25.5);
+  doc.text('2. All items carry official manufacturer warranty per serial numbers.', margin + 3, summaryBoxY + 29.5);
+  doc.text('3. Subject to Chennai jurisdiction. View full terms at gzones.in/terms', margin + 3, summaryBoxY + 33.5);
+  doc.text('4. This is a computer generated invoice and requires no physical signature.', margin + 3, summaryBoxY + 37.5);
+
+  // Right Side: Calculation Totals Table
+  const calcX = margin + 104;
+  const calcWidth = contentWidth - 104;
+  const calcRight = pageWidth - margin - 3;
+
+  doc.setFillColor(...lightBg);
+  doc.roundedRect(calcX, summaryBoxY, calcWidth, 42, 1.5, 1.5, 'F');
+  doc.setDrawColor(...borderLight);
+  doc.roundedRect(calcX, summaryBoxY, calcWidth, 42, 1.5, 1.5, 'S');
+
+  let calcRowY = summaryBoxY + 5;
+
+  // Subtotal (Taxable Value)
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...darkColor);
+  doc.text('Taxable Value (Base Price):', calcX + 3, calcRowY);
+  doc.text(`Rs. ${totalTaxableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, calcRight, calcRowY, { align: 'right' });
+
+  // GST Breakdown (CGST + SGST or IGST)
+  calcRowY += 4.5;
+  if (isIntraState) {
+    doc.text('Central GST (CGST @ 9%):', calcX + 3, calcRowY);
+    doc.text(`Rs. ${cgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, calcRight, calcRowY, { align: 'right' });
+
+    calcRowY += 4.5;
+    doc.text('State GST (SGST @ 9%):', calcX + 3, calcRowY);
+    doc.text(`Rs. ${sgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, calcRight, calcRowY, { align: 'right' });
+  } else {
+    doc.text('Integrated GST (IGST @ 18%):', calcX + 3, calcRowY);
+    doc.text(`Rs. ${igstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, calcRight, calcRowY, { align: 'right' });
+    calcRowY += 4.5;
+  }
+
+  // Delivery Charges
+  calcRowY += 4.5;
+  doc.text('Delivery / Shipping:', calcX + 3, calcRowY);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(5, 150, 105); // emerald 600
+  doc.text('FREE', calcRight, calcRowY, { align: 'right' });
+
+  // Divider
+  calcRowY += 3;
+  doc.setDrawColor(...borderLight);
+  doc.line(calcX + 2, calcRowY, calcX + calcWidth - 2, calcRowY);
+
+  // Grand Total Highlight
+  calcRowY += 6;
+  doc.setFillColor(...primaryColor);
+  doc.roundedRect(calcX + 2, calcRowY - 4.5, calcWidth - 4, 9, 1, 1, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(255, 255, 255);
+  doc.text('GRAND TOTAL (Inc. GST):', calcX + 5, calcRowY + 1.5);
+  doc.text(`Rs. ${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, calcRight - 2, calcRowY + 1.5, { align: 'right' });
+
+  // 6. Signatory & Bottom Footer
+  currentY = summaryBoxY + 48;
+  doc.setDrawColor(...borderLight);
+  doc.line(margin, currentY, pageWidth - margin, currentY);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...mutedColor);
+  doc.text('For queries or support regarding this invoice, contact: support@gzones.in | +91 9345600128', margin, currentY + 4.5);
+  doc.text('Authorized Signatory for GADGET ZONE', pageWidth - margin, currentY + 4.5, { align: 'right' });
+
+  // Trigger browser download of PDF
+  doc.save(`GadgetZone_Invoice_${displayId}.pdf`);
 }

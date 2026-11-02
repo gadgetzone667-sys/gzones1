@@ -26,6 +26,8 @@ import ProductDetails from "./pages/ProductDetails";
 import Wishlist from "./pages/Wishlist";
 import Checkout from "./pages/Checkout";
 import Orders from "./pages/Orders";
+import ResetPassword from "./pages/ResetPassword";
+import Terms from "./pages/Terms";
 import GlowingNetworkBackground from "./components/GlowingNetworkBackground";
 
 const queryClient = new QueryClient();
@@ -152,6 +154,9 @@ const App = () => {
                             <Route path="/admin" element={<AdminRouteGuard />} />
                             <Route path="/admin/login" element={<AdminLogin />} />
                             <Route path="/login" element={<Login />} />
+                            <Route path="/reset-password" element={<ResetPassword />} />
+                            <Route path="/terms" element={<Terms />} />
+                            <Route path="/terms-and-conditions" element={<Terms />} />
                             <Route path="*" element={<NotFound />} />
                           </Routes>
                         </main>

@@ -6,10 +6,10 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import { Link, useNavigate } from "react-router-dom";
-import { CheckCircle2, Package, ArrowLeft, CreditCard, ShoppingBag, Loader2, Truck, Globe, MapPin, Building, UserCheck, FileSpreadsheet, Printer } from "lucide-react";
+import { CheckCircle2, Package, ArrowLeft, CreditCard, ShoppingBag, Loader2, Truck, Globe, MapPin, Building, UserCheck, FileText } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { saveLocalOrder, downloadOrderExcel, printOrderInvoice, type Order } from "../lib/orderExport";
+import { downloadOrderPdf, type Order } from "../lib/orderExport";
 
 const COUNTRIES = [
   "India",
@@ -503,10 +503,7 @@ const Checkout = () => {
         createdAt: new Date().toISOString(),
       };
 
-      // Ensure the order data is always saved for instant Admin Dashboard access
-      saveLocalOrder(orderData);
-
-      // Submit order directly to MongoDB through backend API
+      // Submit order directly to MongoDB through backend API (server verifies all prices)
       let finalOrder = orderData;
       try {
         const res = await fetch("/api/orders", {
@@ -522,7 +519,6 @@ const Checkout = () => {
           const result = await res.json();
           if (result?.order) {
             finalOrder = result.order;
-            saveLocalOrder(finalOrder);
           }
         }
       } catch (err) {
@@ -598,24 +594,15 @@ const Checkout = () => {
           </div>
 
           {orderDetails && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full mt-3">
+            <div className="w-full mt-3">
               <Button
                 type="button"
                 variant="secondary"
-                size="sm"
-                onClick={() => printOrderInvoice(orderDetails as Order)}
-                className="w-full h-10 font-bold rounded-xl border border-sky-500/30 bg-sky-500/10 text-sky-400 hover:bg-sky-500/20"
+                size="lg"
+                onClick={() => downloadOrderPdf(orderDetails as Order)}
+                className="w-full h-11 font-bold rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 shadow-md flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
               >
-                <Printer className="h-4 w-4 mr-1.5" /> Print Invoice
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => downloadOrderExcel(orderDetails as Order)}
-                className="w-full h-10 font-bold rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
-              >
-                <FileSpreadsheet className="h-4 w-4 mr-1.5" /> Download Excel
+                <FileText className="h-4 w-4" /> Download Invoice (PDF)
               </Button>
             </div>
           )}

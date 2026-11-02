@@ -8,12 +8,6 @@ export function requireAuth(req, res, next) {
     return res.status(401).json({ message: "No token provided." });
   }
   const token = authHeader.split(" ")[1];
-  
-  // Master Admin session support
-  if (token && token.startsWith("gz_admin_session_")) {
-    req.user = { id: "admin-master-root", email: "admin@gzones.in", isAdmin: true };
-    return next();
-  }
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
@@ -40,11 +34,6 @@ export function optionalAuth(req, _res, next) {
     return next();
   }
   const token = authHeader.split(" ")[1];
-
-  if (token && token.startsWith("gz_admin_session_")) {
-    req.user = { id: "admin-master-root", email: "admin@gzones.in", isAdmin: true };
-    return next();
-  }
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);

@@ -54,15 +54,18 @@ const AdminLogin = () => {
       const success = await login(cleanEmail, cleanPassword);
 
       if (success) {
-        // Read updated user from localStorage
-        const storedUser = localStorage.getItem("GadgetZone_user");
-        const parsed = storedUser ? JSON.parse(storedUser) : null;
+        // Verify directly against backend server to confirm administrative permissions
+        const activeToken = localStorage.getItem("GadgetZone_token");
+        const verifyRes = await fetch("/api/auth/me", {
+          headers: { Authorization: `Bearer ${activeToken}` },
+        });
+        const verifyData = await verifyRes.json().catch(() => null);
 
-        if (parsed?.isAdmin) {
+        if (verifyData?.user?.isAdmin) {
           toast.success("Administrator access verified. Welcome to Management Console.");
           navigate(onAdminSubdomain ? "/" : "/admin");
         } else {
-          // Logged in as normal user on admin URL -> block access
+          // Logged in as normal customer on admin portal -> revoke session
           logout();
           setError("Access Denied: This account does not have administrative permissions.");
           toast.error("Unauthorized: Administrative rights required.");

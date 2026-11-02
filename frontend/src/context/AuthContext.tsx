@@ -1,10 +1,12 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { extractSsoData } from "../lib/domain";
 
-interface User {
+export interface User {
   id: string;
   email: string;
   isAdmin: boolean;
+  name?: string;
+  avatar?: string;
 }
 
 interface AuthContextType {
@@ -15,6 +17,9 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, pass: string) => Promise<boolean>;
   register: (email: string, pass: string) => Promise<boolean | string>;
+  loginWithGoogle: (credential: string) => Promise<boolean>;
+  forgotPassword: (email: string) => Promise<{ success: boolean; message: string }>;
+  resetPassword: (email: string, token: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
   skipLogin: () => void;
   getToken: () => string | null;
@@ -28,59 +33,73 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [hasSkippedLogin, setHasSkippedLogin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // On mount, restore session from localStorage or handle incoming SSO payload
+  // Securely verify session on application startup
   useEffect(() => {
-    // Check if incoming SSO payload exists from gzones.in to admin.gzones.in
-    const sso = extractSsoData();
-    if (sso) {
-      localStorage.setItem("GadgetZone_token", sso.token);
-      localStorage.setItem("GadgetZone_user", JSON.stringify(sso.user));
-      setUser(sso.user);
-      setToken(sso.token);
-      setIsLoading(false);
-      return;
-    }
+    try {
+      localStorage.removeItem("GadgetZone_local_registered_users");
+      localStorage.removeItem("GadgetZone_all_orders");
+      localStorage.removeItem("GadgetZone_user"); // Never trust client-cached user roles
+    } catch {}
 
-    const storedToken = localStorage.getItem("GadgetZone_token");
-    const storedUser = localStorage.getItem("GadgetZone_user");
-    if (storedToken && storedUser) {
-      try {
-        const parsed = JSON.parse(storedUser) as User;
-        setUser(parsed);
-        setToken(storedToken);
-      } catch {
-        localStorage.removeItem("GadgetZone_token");
-        localStorage.removeItem("GadgetZone_user");
+    const verifySession = async () => {
+      const sso = extractSsoData();
+      let activeToken = sso?.token || localStorage.getItem("GadgetZone_token");
+
+      if (!activeToken) {
+        setIsLoading(false);
+        return;
       }
-    }
-    const skipped = localStorage.getItem("GadgetZone_skipped");
-    if (skipped === "true") setHasSkippedLogin(true);
-    setIsLoading(false);
+
+      try {
+        const res = await fetch("/api/auth/me", {
+          headers: {
+            Authorization: `Bearer ${activeToken}`,
+          },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.user) {
+            const verifiedUser: User = {
+              id: String(data.user.id || data.user._id),
+              email: data.user.email,
+              isAdmin: Boolean(data.user.isAdmin),
+              name: data.user.name,
+              avatar: data.user.avatar,
+            };
+            setUser(verifiedUser);
+            setToken(activeToken);
+            localStorage.setItem("GadgetZone_token", activeToken);
+          } else {
+            throw new Error("Invalid session data");
+          }
+        } else {
+          localStorage.removeItem("GadgetZone_token");
+          setUser(null);
+          setToken(null);
+        }
+      } catch (err) {
+        console.warn("Auth verification notice:", err);
+        localStorage.removeItem("GadgetZone_token");
+        setUser(null);
+        setToken(null);
+      } finally {
+        const skipped = localStorage.getItem("GadgetZone_skipped");
+        if (skipped === "true") setHasSkippedLogin(true);
+        setIsLoading(false);
+      }
+    };
+
+    verifySession();
   }, []);
 
-  const getToken = () => localStorage.getItem("GadgetZone_token");
-
-  // Helper to read and write locally registered users when backend is static / returning 405
-  const getLocalUsers = (): Array<{ id: string; email: string; pass: string; isAdmin: boolean }> => {
-    try {
-      const stored = localStorage.getItem("GadgetZone_local_registered_users");
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  };
-
-  const saveLocalUsers = (users: Array<{ id: string; email: string; pass: string; isAdmin: boolean }>) => {
-    try {
-      localStorage.setItem("GadgetZone_local_registered_users", JSON.stringify(users));
-    } catch {
-      // Ignore write errors
-    }
-  };
+  const getToken = () => token || localStorage.getItem("GadgetZone_token");
 
   const login = async (email: string, pass: string): Promise<boolean> => {
     const cleanEmail = (email || "").trim().toLowerCase();
     const cleanPassword = (pass || "").trim();
+
+    if (!cleanEmail || !cleanPassword) return false;
 
     try {
       const res = await fetch("/api/auth/login", {
@@ -89,52 +108,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
       });
 
-      // If backend API responded successfully with JSON
       if (res.ok) {
-        const contentType = res.headers.get("content-type") || "";
-        if (contentType.includes("application/json")) {
-          const data = await res.json();
-          if (data?.token && data?.user) {
-            localStorage.setItem("GadgetZone_token", data.token);
-            localStorage.setItem("GadgetZone_user", JSON.stringify(data.user));
-            setUser(data.user);
-            setToken(data.token);
-            return true;
-          }
+        const data = await res.json();
+        if (data?.token && data?.user) {
+          localStorage.setItem("GadgetZone_token", data.token);
+          const verifiedUser: User = {
+            id: String(data.user.id || data.user._id),
+            email: data.user.email,
+            isAdmin: Boolean(data.user.isAdmin),
+            name: data.user.name,
+            avatar: data.user.avatar,
+          };
+          setUser(verifiedUser);
+          setToken(data.token);
+          return true;
         }
       }
-
-      // If server explicitly rejected with 401 Unauthorized with JSON body
-      if (res.status === 401) {
-        return false;
-      }
+      return false;
     } catch (err) {
-      console.warn("Backend API request error:", err);
+      console.warn("Login request failed:", err);
+      return false;
     }
+  };
 
-    // Customer fallback for offline local testing
-    const localUsers = getLocalUsers();
-    const matched = localUsers.find(u => u.email === cleanEmail && u.pass === cleanPassword);
-    if (matched) {
-      const customerUser: User = {
-        id: matched.id,
-        email: matched.email,
-        isAdmin: matched.isAdmin || false,
-      };
-      const sessionToken = "gz_customer_session_" + Date.now();
-      localStorage.setItem("GadgetZone_token", sessionToken);
-      localStorage.setItem("GadgetZone_user", JSON.stringify(customerUser));
-      setUser(customerUser);
-      setToken(sessionToken);
-      return true;
+  const loginWithGoogle = async (credential: string): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.token && data?.user) {
+          localStorage.setItem("GadgetZone_token", data.token);
+          const verifiedUser: User = {
+            id: String(data.user.id || data.user._id),
+            email: data.user.email,
+            isAdmin: Boolean(data.user.isAdmin),
+            name: data.user.name,
+            avatar: data.user.avatar,
+          };
+          setUser(verifiedUser);
+          setToken(data.token);
+          return true;
+        }
+      }
+      return false;
+    } catch (err) {
+      console.warn("Google login failed:", err);
+      return false;
     }
-
-    return false;
   };
 
   const register = async (email: string, pass: string): Promise<boolean | string> => {
     const cleanEmail = (email || "").trim().toLowerCase();
     const cleanPassword = (pass || "").trim();
+
+    if (!cleanEmail || !cleanPassword) {
+      return "Email and password are required.";
+    }
 
     try {
       const res = await fetch("/api/auth/register", {
@@ -143,59 +177,93 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
       });
 
-      const contentType = res.headers.get("content-type") || "";
+      const data = await res.json().catch(() => null);
 
-      // Real backend responded with JSON
-      if (contentType.includes("application/json")) {
-        const data = await res.json();
-        if (res.ok) {
-          localStorage.setItem("GadgetZone_token", data.token);
-          localStorage.setItem("GadgetZone_user", JSON.stringify(data.user));
-          setUser(data.user);
-          setToken(data.token);
-          return true;
-        }
-        return data.message || "Registration failed.";
+      if (res.ok && data?.token && data?.user) {
+        localStorage.setItem("GadgetZone_token", data.token);
+        const verifiedUser: User = {
+          id: String(data.user.id || data.user._id),
+          email: data.user.email,
+          isAdmin: Boolean(data.user.isAdmin),
+          name: data.user.name,
+          avatar: data.user.avatar,
+        };
+        setUser(verifiedUser);
+        setToken(data.token);
+        return true;
       }
 
-      // If response is HTML or 405 (e.g. Vercel static rewrites), fall through to local storage fallback
-      console.warn("Backend API returned non-JSON / 405 status. Utilizing client registration fallback.");
+      return data?.message || "Registration failed. Please try again.";
     } catch (err) {
-      console.warn("Backend API request error, proceeding with local registration fallback:", err);
+      console.warn("Registration error:", err);
+      return "Unable to connect to authentication service.";
     }
+  };
 
-    // Local registration fallback for static Vercel deployments (prevents 405 Method Not Allowed failures)
-    const localUsers = getLocalUsers();
-    if (localUsers.some(u => u.email === cleanEmail)) {
-      return "An account with this email already exists.";
+  const forgotPassword = async (email: string): Promise<{ success: boolean; message: string }> => {
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success) {
+        return {
+          success: true,
+          message: data.message || "Password reset instructions have been sent to your email.",
+        };
+      }
+      return {
+        success: false,
+        message: data?.message || "Failed to process password reset request.",
+      };
+    } catch (err) {
+      return {
+        success: false,
+        message: "Network error. Please try again later.",
+      };
     }
+  };
 
-    const newUser = {
-      id: "usr_" + Math.random().toString(36).substring(2, 10),
-      email: cleanEmail,
-      pass: cleanPassword,
-      isAdmin: false,
-    };
-    localUsers.push(newUser);
-    saveLocalUsers(localUsers);
+  const resetPassword = async (
+    email: string,
+    tokenStr: string,
+    newPassword: string
+  ): Promise<{ success: boolean; message: string }> => {
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, token: tokenStr, newPassword }),
+      });
 
-    const userObj: User = {
-      id: newUser.id,
-      email: newUser.email,
-      isAdmin: newUser.isAdmin,
-    };
-    const sessionToken = "gz_customer_session_" + Date.now();
-    localStorage.setItem("GadgetZone_token", sessionToken);
-    localStorage.setItem("GadgetZone_user", JSON.stringify(userObj));
-    setUser(userObj);
-    setToken(sessionToken);
-    return true;
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success) {
+        return {
+          success: true,
+          message: data.message || "Password updated successfully!",
+        };
+      }
+      return {
+        success: false,
+        message: data?.message || "Failed to reset password. Link may be expired.",
+      };
+    } catch (err) {
+      return {
+        success: false,
+        message: "Network error. Please try again later.",
+      };
+    }
   };
 
   const logout = () => {
     localStorage.removeItem("GadgetZone_token");
     localStorage.removeItem("GadgetZone_user");
     localStorage.removeItem("GadgetZone_skipped");
+    localStorage.removeItem("GadgetZone_all_orders");
+    localStorage.removeItem("GadgetZone_local_registered_users");
     setUser(null);
     setToken(null);
     setHasSkippedLogin(false);
@@ -207,18 +275,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      token,
-      isLoggedIn: !!user,
-      hasSkippedLogin,
-      isLoading,
-      login,
-      register,
-      logout,
-      skipLogin,
-      getToken,
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        isLoggedIn: !!user,
+        hasSkippedLogin,
+        isLoading,
+        login,
+        register,
+        loginWithGoogle,
+        forgotPassword,
+        resetPassword,
+        logout,
+        skipLogin,
+        getToken,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

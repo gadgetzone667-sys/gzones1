@@ -43,6 +43,13 @@ services:
       # Defaults to local Docker MongoDB; can be overridden in .env for MongoDB Atlas
       - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/GadgetZone}
       - JWT_SECRET=${JWT_SECRET:-GadgetZone_super_secret_key_change_in_production}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_FROM=${SMTP_FROM:-}
     depends_on:
       mongodb:
         condition: service_healthy

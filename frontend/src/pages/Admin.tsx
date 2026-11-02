@@ -29,6 +29,7 @@ import {
   FileSpreadsheet,
   Search,
   Printer,
+  FileText,
   Eye,
   RefreshCw,
   AlertTriangle,
@@ -41,10 +42,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  getLocalOrders,
   updateLocalOrderStatus,
   updateLocalPaymentStatus,
   deleteLocalOrder,
+  downloadOrderPdf,
   downloadOrderExcel,
   downloadAllOrdersExcel,
   printOrderInvoice,
@@ -328,7 +329,6 @@ const Admin = () => {
   const fetchAllOrders = useCallback(async (showLoading = true) => {
     if (showLoading) setOrdersLoading(true);
     try {
-      const local = getLocalOrders();
       let serverOrders: Order[] = [];
 
       if (token) {
@@ -348,27 +348,12 @@ const Admin = () => {
             }
           }
         } catch (e) {
-          console.warn("Backend orders unreachable, reading local orders:", e);
+          console.warn("Backend orders unreachable:", e);
         }
       }
 
-      // Merge unique orders by trackingId, orderId, or _id
-      const mergedMap = new Map<string, Order>();
-      serverOrders.forEach((o) => {
-        const key = o.orderId || o.trackingId || o._id;
-        if (key) mergedMap.set(key, o);
-      });
-      local.forEach((o) => {
-        const key = o.orderId || o.trackingId || o._id;
-        if (key) {
-          const existing = mergedMap.get(key);
-          mergedMap.set(key, { ...existing, ...o });
-        } else {
-          mergedMap.set(o._id, o);
-        }
-      });
-
-      const all = Array.from(mergedMap.values()).sort(
+      // Orders are strictly verified from MongoDB database
+      const all = [...serverOrders].sort(
         (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
       );
       setOrders(all);
@@ -1693,6 +1678,16 @@ const Admin = () => {
                   </div>
 
                   <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => downloadOrderPdf(selectedOrder)}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 text-xs font-bold transition-colors cursor-pointer"
+                      title="Download GST Invoice PDF"
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      <span>PDF</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => printOrderInvoice(selectedOrder)}

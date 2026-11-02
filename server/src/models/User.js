@@ -10,7 +10,28 @@ const userSchema = new mongoose.Schema({
   },
   passwordHash: {
     type: String,
-    required: true,
+    required: false, // Optional for Google OAuth accounts
+    default: null,
+  },
+  googleId: {
+    type: String,
+    default: null,
+  },
+  avatar: {
+    type: String,
+    default: "",
+  },
+  name: {
+    type: String,
+    default: "",
+  },
+  resetPasswordToken: {
+    type: String,
+    default: null,
+  },
+  resetPasswordExpires: {
+    type: Date,
+    default: null,
   },
   isAdmin: {
     type: Boolean,
