@@ -1,5 +1,15 @@
 import { jsPDF } from "jspdf";
 
+export interface BuildPart {
+  category: string;
+  categoryLabel?: string;
+  id?: string;
+  name: string;
+  price: number;
+  brand?: string;
+  specs?: string;
+}
+
 export interface OrderItem {
   productId: string;
   name: string;
@@ -7,6 +17,8 @@ export interface OrderItem {
   price: number;
   quantity: number;
   subtotal?: number;
+  type?: "product" | "build";
+  parts?: BuildPart[];
 }
 
 export interface OrderCustomer {
@@ -368,15 +380,37 @@ export function printOrderInvoice(order: Order): void {
   const totalAmount = (order.grandTotal ?? order.totalPrice ?? 0).toLocaleString();
   const status = order.orderStatus || order.status || "Pending";
 
-  const itemsHtml = (order.items || []).map((it, idx) => `
-    <tr>
-      <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${idx + 1}</td>
-      <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${it.name}</td>
-      <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center;">${it.quantity || 1}</td>
-      <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right;">₹${(it.price || 0).toLocaleString()}</td>
-      <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: bold;">₹${((it.price || 0) * (it.quantity || 1)).toLocaleString()}</td>
-    </tr>
-  `).join("");
+  const itemsHtml = (order.items || []).map((it, idx) => {
+    let partsHtml = "";
+    if (Array.isArray(it.parts) && it.parts.length > 0) {
+      partsHtml = `
+        <div style="margin-top: 6px; padding: 6px 10px; background: #f8fafc; border-left: 3px solid #0284c7; border-radius: 4px; font-size: 11px;">
+          <div style="font-weight: 700; color: #0369a1; margin-bottom: 4px; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;">Configured Components:</div>
+          <table style="width: 100%; border-collapse: collapse; margin: 0; font-size: 11px;">
+            ${it.parts.map(p => `
+              <tr>
+                <td style="padding: 2px 4px; font-weight: 600; color: #475569; width: 140px;">${p.categoryLabel || p.category?.toUpperCase() || "COMPONENT"}:</td>
+                <td style="padding: 2px 4px; color: #0f172a;">${p.name}${p.specs ? ` (${p.specs})` : ""}</td>
+                <td style="padding: 2px 4px; text-align: right; color: #0284c7; font-weight: 600;">₹${(p.price || 0).toLocaleString()}</td>
+              </tr>
+            `).join("")}
+          </table>
+        </div>
+      `;
+    }
+    return `
+      <tr>
+        <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top;">${idx + 1}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top;">
+          <div style="font-weight: 600; font-size: 13px;">${it.name}</div>
+          ${partsHtml}
+        </td>
+        <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; vertical-align: top;">${it.quantity || 1}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right; vertical-align: top;">₹${(it.price || 0).toLocaleString()}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: bold; vertical-align: top;">₹${((it.price || 0) * (it.quantity || 1)).toLocaleString()}</td>
+      </tr>
+    `;
+  }).join("");
 
   const printWindow = window.open("", "_blank");
   if (!printWindow) return;
@@ -747,6 +781,31 @@ export function downloadOrderPdf(order: Order): void {
     doc.text(itemTotalGross.toLocaleString('en-IN', { minimumFractionDigits: 2 }), colX.total, currentY + 5.2, { align: 'right' });
 
     currentY += 8;
+
+    // Render itemized parts if this item is a custom PC build
+    if (Array.isArray(item.parts) && item.parts.length > 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(...primaryColor);
+      doc.text('CONFIGURED BUILD SPECIFICATIONS:', colX.desc + 2, currentY + 3);
+      currentY += 4.5;
+
+      item.parts.forEach((p) => {
+        if (currentY > 265) {
+          doc.addPage();
+          currentY = 20;
+        }
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.5);
+        doc.setTextColor(...darkColor);
+        const pLabel = `${p.categoryLabel || p.category?.toUpperCase() || 'PART'}: ${p.name}`;
+        doc.text(`• ${pLabel.slice(0, 65)}`, colX.desc + 4, currentY + 3);
+        doc.setTextColor(...mutedColor);
+        doc.text(`Rs. ${(p.price || 0).toLocaleString()}`, colX.total, currentY + 3, { align: 'right' });
+        currentY += 4;
+      });
+      currentY += 2;
+    }
   });
 
   // Accurate overall GST Calculation matching Grand Total

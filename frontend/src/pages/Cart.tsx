@@ -3,7 +3,7 @@ import { useCart } from "../context/CartContext";
 import { useProducts } from "../context/ProductContext";
 import { useAuth } from "../context/AuthContext";
 import { motion } from "framer-motion";
-import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, Sparkles, RefreshCw, PlusCircle } from "lucide-react";
+import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, Sparkles, RefreshCw, PlusCircle, Cpu } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import ProductCard from "../components/ProductCard";
@@ -113,9 +113,28 @@ const Cart = () => {
                     <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">{item.type}</span>
                   )}
                 </div>
-                <div className="flex-1 min-w-[150px]">
+                <div className="flex-1 min-w-[180px]">
                   <h3 className="font-display font-semibold text-sm truncate">{item.name}</h3>
                   <p className="text-muted-foreground text-sm font-medium">₹{item.price.toLocaleString()}</p>
+                  {item.type === "build" && item.parts && item.parts.length > 0 && (
+                    <div className="mt-2 text-[11px] text-muted-foreground bg-secondary/50 p-2 rounded-lg border border-border/40">
+                      <p className="font-semibold text-primary mb-1 flex items-center gap-1">
+                        <Cpu className="h-3 w-3" /> Included Components ({item.parts.length}):
+                      </p>
+                      <div className="space-y-0.5">
+                        {item.parts.slice(0, 4).map((p, idx) => (
+                          <p key={idx} className="truncate">
+                            <span className="font-medium text-foreground">{p.categoryLabel || p.category}:</span> {p.name}
+                          </p>
+                        ))}
+                        {item.parts.length > 4 && (
+                          <p className="text-[10px] text-muted-foreground italic">
+                            +{item.parts.length - 4} more configured components
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <button

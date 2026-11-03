@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useCart } from "../context/CartContext";
+import { useCart, type BuildPart } from "../context/CartContext";
 import { motion } from "framer-motion";
 import { ShoppingCart, AlertTriangle, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -67,10 +67,29 @@ const BuildPC = () => {
   const isComplete = selectedCount === REQUIRED_CATEGORIES.length;
 
   const addBuildToCart = () => {
-    const parts = Object.values(selections).filter(Boolean) as PCComponent[];
-    const name = `Custom Build (${parts.length} parts)`;
-    addItem({ id: `build-${Date.now()}`, name, price: totalPrice, type: "build" });
-    toast.success("Custom build added to cart!");
+    const parts = REQUIRED_CATEGORIES.map(category => {
+      const comp = selections[category];
+      if (!comp) return null;
+      return {
+        id: comp.id,
+        category,
+        categoryLabel: categoryLabels[category] || category,
+        name: comp.name,
+        price: comp.price,
+        brand: comp.brand || "",
+        specs: comp.specs || "",
+      };
+    }).filter(Boolean) as BuildPart[];
+
+    const name = `Custom PC Build (${parts.length} Components)`;
+    addItem({
+      id: `build-${Date.now()}`,
+      name,
+      price: totalPrice,
+      type: "build",
+      parts,
+    });
+    toast.success("Custom PC build added to cart!");
   };
 
   if (loading) {
@@ -109,12 +128,14 @@ const BuildPC = () => {
                   <select
                     value={selections[category]?.id || ""}
                     onChange={e => select(category, e.target.value)}
-                    className="flex-1 px-3.5 py-2.5 rounded-lg bg-secondary text-foreground text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-ring truncate"
+                    className="flex-1 px-3.5 py-2.5 rounded-lg bg-secondary text-foreground text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-ring truncate border border-border"
                   >
-                    <option value="">Select {categoryLabels[category]}</option>
+                    <option value="">
+                      Select {categoryLabels[category]} ({(pcComponents[category] || []).length} available)
+                    </option>
                     {(pcComponents[category] || []).map(c => (
                       <option key={c.id} value={c.id}>
-                        {c.name} — ₹{c.price.toLocaleString()} ({c.specs})
+                        {c.brand ? `[${c.brand}] ` : ""}{c.name} — ₹{c.price.toLocaleString()}{c.specs ? ` (${c.specs})` : ""}
                       </option>
                     ))}
                   </select>

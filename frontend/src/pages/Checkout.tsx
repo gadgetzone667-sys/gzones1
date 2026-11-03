@@ -471,7 +471,9 @@ const Checkout = () => {
           image: item.image || "",
           price: item.price,
           quantity: item.quantity,
-          subtotal: item.price * item.quantity
+          subtotal: item.price * item.quantity,
+          type: item.type,
+          parts: item.parts || []
         })),
         subtotal: finalPrice,
         deliveryCharges: 0,

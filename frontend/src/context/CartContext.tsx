@@ -1,5 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 
+export interface BuildPart {
+  category: string;
+  categoryLabel?: string;
+  id?: string;
+  name: string;
+  price: number;
+  brand?: string;
+  specs?: string;
+}
+
 export interface CartItem {
   id: string;
   name: string;
@@ -7,6 +17,7 @@ export interface CartItem {
   quantity: number;
   image?: string;
   type: "product" | "build";
+  parts?: BuildPart[];
 }
 
 interface CartContextType {

@@ -159,6 +159,51 @@ const Admin = () => {
     };
   }, [orders]);
 
+  // Section: Placed Build PC Orders
+  const [buildOrdersSearch, setBuildOrdersSearch] = useState("");
+  const [buildOrdersStatus, setBuildOrdersStatus] = useState("all");
+
+  const buildOrders = useMemo(() => {
+    return orders.filter((o) =>
+      o.items?.some(
+        (i) =>
+          i.type === "build" ||
+          i.productId?.startsWith("build-") ||
+          i.name?.toLowerCase().includes("build") ||
+          (Array.isArray(i.parts) && i.parts.length > 0)
+      )
+    );
+  }, [orders]);
+
+  const filteredBuildOrders = useMemo(() => {
+    return buildOrders.filter((order) => {
+      const q = buildOrdersSearch.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        (order.orderId && order.orderId.toLowerCase().includes(q)) ||
+        (order._id && order._id.toLowerCase().includes(q)) ||
+        (order.customer?.name && order.customer.name.toLowerCase().includes(q)) ||
+        (order.customer?.phone && order.customer.phone.includes(q)) ||
+        (order.customer?.email && order.customer.email.toLowerCase().includes(q)) ||
+        order.items?.some(
+          (it) =>
+            it.name.toLowerCase().includes(q) ||
+            it.parts?.some(
+              (p) =>
+                p.name.toLowerCase().includes(q) ||
+                p.category?.toLowerCase().includes(q)
+            )
+        );
+
+      const currentStatus = order.orderStatus || order.status || "Pending";
+      const matchesStatus =
+        buildOrdersStatus === "all" ||
+        currentStatus.toLowerCase() === buildOrdersStatus.toLowerCase();
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [buildOrders, buildOrdersSearch, buildOrdersStatus]);
+
   // Section 8: Search, Filter, Sort
   const filteredAndSortedOrders = useMemo(() => {
     const result = orders.filter((order) => {
@@ -282,12 +327,23 @@ const Admin = () => {
   const [componentsLoading, setComponentsLoading] = useState(false);
   const [editingComponentId, setEditingComponentId] = useState<string | null>(null);
   const [editComponentForm, setEditComponentForm] = useState({ name: "", price: "", specs: "" });
+  const [showAddComponent, setShowAddComponent] = useState(false);
+  const [newComponent, setNewComponent] = useState({
+    name: "",
+    category: "processor",
+    price: "",
+    brand: "",
+    specs: "",
+  });
 
   useEffect(() => {
     if (activeTab === "reviews") fetchReviews();
     if (activeTab === "orders") fetchAllOrders();
     if (activeTab === "services") fetchAdminServices();
-    if (activeTab === "components") fetchAdminComponents();
+    if (activeTab === "components") {
+      fetchAdminComponents();
+      fetchAllOrders();
+    }
   }, [activeTab]);
 
   const fetchAdminServices = async () => {
@@ -691,6 +747,52 @@ const Admin = () => {
       fetchAdminComponents();
     } catch {
       toast.error("Failed to update component price.");
+    }
+  };
+
+  const handleAddComponent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComponent.name.trim() || !newComponent.price) {
+      toast.error("Component name and price are required.");
+      return;
+    }
+    try {
+      const res = await fetch("/api/components", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: newComponent.name.trim(),
+          category: newComponent.category,
+          price: Number(newComponent.price),
+          brand: newComponent.brand.trim(),
+          specs: newComponent.specs.trim(),
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to add component");
+      toast.success("Component added to PC Builder database successfully!");
+      setNewComponent({ name: "", category: "processor", price: "", brand: "", specs: "" });
+      setShowAddComponent(false);
+      fetchAdminComponents();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add component.");
+    }
+  };
+
+  const deleteComponent = async (id: string) => {
+    if (!window.confirm("Are you sure you want to remove this component from the catalog?")) return;
+    try {
+      const res = await fetch(`/api/components/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to delete component");
+      toast.success("Component removed.");
+      fetchAdminComponents();
+    } catch {
+      toast.error("Failed to delete component.");
     }
   };
 
@@ -1179,88 +1281,556 @@ const Admin = () => {
         </div>
       )}
 
-      {/* TAB 3: PC BUILDER COMPONENTS PRICING */}
+      {/* TAB 3: PC BUILDER COMPONENTS & PLACED BUILD PC ORDERS */}
       {activeTab === "components" && (
-        <div className="space-y-6">
-          {componentsLoading ? (
-            <div className="py-20 text-center">
-              <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Fetching components...</p>
+        <div className="space-y-8">
+          {/* Header & Quick Stats */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Cpu className="h-6 w-6 text-sky-400" />
+                <span>PC Builder & Custom Build Orders</span>
+              </h2>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                Monitor placed customer custom PC builds with instant GST invoice printing & PDF download, and manage live hardware components database.
+              </p>
             </div>
-          ) : (
-            Object.entries(componentsGrouped).map(([category, parts]) => (
-              <div key={category} className="space-y-3">
-                <h2 className="text-lg font-bold uppercase tracking-wider text-muted-foreground mt-4 mb-2">
-                  {category}
-                </h2>
-                {parts.map((c, idx) => (
-                  <div
-                    key={c.id}
-                    className="rounded-xl border bg-card p-4 animate-fade-in-up"
-                    style={{ animationDelay: `${0.03 * idx}s` }}
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  fetchAllOrders();
+                  fetchAdminComponents();
+                  toast.success("Build orders & hardware data refreshed.");
+                }}
+                className="gap-1.5 cursor-pointer text-xs"
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> Refresh
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setShowAddComponent(!showAddComponent)}
+                className="gap-1.5 bg-sky-600 hover:bg-sky-700 text-white cursor-pointer text-xs"
+              >
+                {showAddComponent ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                {showAddComponent ? "Cancel" : "Add Hardware Part"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Quick Metrics Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            <div className="bg-card p-4 rounded-xl border border-border shadow-sm">
+              <span className="text-[11px] font-semibold uppercase text-muted-foreground tracking-wider block">Total PC Builds</span>
+              <span className="text-2xl font-bold font-display text-sky-400">{buildOrders.length}</span>
+            </div>
+            <div className="bg-card p-4 rounded-xl border border-border shadow-sm">
+              <span className="text-[11px] font-semibold uppercase text-muted-foreground tracking-wider block">Pending Builds</span>
+              <span className="text-2xl font-bold font-display text-amber-400">
+                {buildOrders.filter(o => (o.orderStatus || o.status || "Pending") === "Pending").length}
+              </span>
+            </div>
+            <div className="bg-card p-4 rounded-xl border border-border shadow-sm">
+              <span className="text-[11px] font-semibold uppercase text-muted-foreground tracking-wider block">In Production</span>
+              <span className="text-2xl font-bold font-display text-indigo-400">
+                {buildOrders.filter(o => ["Confirmed", "Processing", "Shipped"].includes(o.orderStatus || o.status || "")).length}
+              </span>
+            </div>
+            <div className="bg-card p-4 rounded-xl border border-border shadow-sm">
+              <span className="text-[11px] font-semibold uppercase text-muted-foreground tracking-wider block">Hardware Parts</span>
+              <span className="text-2xl font-bold font-display text-emerald-400">
+                {Object.values(componentsGrouped).reduce((sum, list) => sum + list.length, 0)}
+              </span>
+            </div>
+          </div>
+
+          {/* SECTION A: PLACED BUILD PC ORDERS TABLE */}
+          <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-border space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-base sm:text-lg text-foreground flex items-center gap-2">
+                    <span>Placed Build PC Orders</span>
+                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-sky-500/15 text-sky-400 border border-sky-500/30">
+                      {filteredBuildOrders.length} {filteredBuildOrders.length === 1 ? "Order" : "Orders"}
+                    </span>
+                  </h3>
+                </div>
+
+                {/* Search Box */}
+                <div className="relative w-full sm:w-72">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by customer, phone, ID..."
+                    value={buildOrdersSearch}
+                    onChange={(e) => setBuildOrdersSearch(e.target.value)}
+                    className="pl-9 h-9 text-xs"
+                  />
+                  {buildOrdersSearch && (
+                    <button
+                      onClick={() => setBuildOrdersSearch("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Status Filter Badges */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                {["all", "Pending", "Confirmed", "Processing", "Shipped", "Delivered", "Cancelled"].map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => setBuildOrdersStatus(st)}
+                    className={`px-3 py-1 rounded-lg font-medium transition-all shrink-0 cursor-pointer ${
+                      buildOrdersStatus.toLowerCase() === st.toLowerCase()
+                        ? "bg-sky-600 text-white shadow-sm"
+                        : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
                   >
-                    {editingComponentId === c.id ? (
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-sm flex-1">{c.name}</h3>
-                          <Button size="sm" onClick={() => saveComponentEdit(c.id)}>
-                            <Save className="h-3.5 w-3.5 mr-1" /> Save
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setEditingComponentId(null)}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <Label className="text-xs">Component Price (₹)</Label>
-                            <Input
-                              type="number"
-                              value={editComponentForm.price}
+                    {st === "all" ? "All Orders" : st}
+                    {st === "all"
+                      ? ` (${buildOrders.length})`
+                      : ` (${buildOrders.filter((o) => (o.orderStatus || o.status || "Pending").toLowerCase() === st.toLowerCase()).length})`}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Orders Table Body */}
+            {filteredBuildOrders.length === 0 ? (
+              <div className="py-16 text-center px-4">
+                <Cpu className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
+                <h4 className="font-semibold text-base text-foreground mb-1">No Placed Build PC Orders Found</h4>
+                <p className="text-xs sm:text-sm text-muted-foreground max-w-md mx-auto">
+                  {buildOrdersSearch || buildOrdersStatus !== "all"
+                    ? "No build orders match your current search or status filter. Try resetting filters."
+                    : "When customers select their parts and place an order on the Build PC page (/build-pc), their configured specifications will show up here with one-click Print and GST Tax Invoice PDF download."}
+                </p>
+                {(buildOrdersSearch || buildOrdersStatus !== "all") && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setBuildOrdersSearch("");
+                      setBuildOrdersStatus("all");
+                    }}
+                    className="mt-4 text-xs"
+                  >
+                    Clear Filters
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-muted/40 border-b border-border text-muted-foreground uppercase text-[10px] tracking-wider font-semibold">
+                      <th className="py-3 px-4">Order ID & Date</th>
+                      <th className="py-3 px-4">Customer Details</th>
+                      <th className="py-3 px-4 min-w-[280px]">Configured Build Components</th>
+                      <th className="py-3 px-4">Total Amount</th>
+                      <th className="py-3 px-4">Order Status</th>
+                      <th className="py-3 px-4 text-right min-w-[200px]">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {filteredBuildOrders.map((order) => {
+                      const orderIdDisplay = order.orderId || order._id || "GZ-BUILD";
+                      const dateDisplay = order.createdAt
+                        ? new Date(order.createdAt).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "Recent";
+                      const customerName = order.customer?.name || order.shippingInfo?.name || "Customer";
+                      const customerPhone = order.customer?.phone || order.shippingInfo?.phone || "";
+                      const customerEmail = order.customer?.email || "";
+                      const customerCity = order.shippingAddress?.city || order.shippingInfo?.city || "";
+                      const customerState = order.shippingAddress?.state || order.shippingInfo?.state || "";
+                      const currentStatus = order.orderStatus || order.status || "Pending";
+                      const grandTotal = order.grandTotal ?? order.totalPrice ?? 0;
+
+                      // Find the build item
+                      const buildItem =
+                        order.items?.find((i) => i.type === "build" || (i.parts && i.parts.length > 0)) ||
+                        order.items?.[0];
+
+                      return (
+                        <tr key={order._id || order.orderId} className="hover:bg-muted/20 transition-colors">
+                          {/* Order ID & Date */}
+                          <td className="py-3.5 px-4 align-top">
+                            <span className="font-mono font-bold text-sky-400 block text-xs">
+                              #{orderIdDisplay}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground block mt-0.5">
+                              {dateDisplay}
+                            </span>
+                            <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground font-medium">
+                              {order.paymentMethod || "COD"}
+                            </span>
+                          </td>
+
+                          {/* Customer */}
+                          <td className="py-3.5 px-4 align-top">
+                            <div className="font-semibold text-foreground text-xs">{customerName}</div>
+                            {customerPhone && (
+                              <a
+                                href={`tel:${customerPhone}`}
+                                className="text-muted-foreground hover:text-sky-400 text-[11px] flex items-center gap-1 mt-0.5"
+                              >
+                                <Phone className="h-3 w-3" /> {customerPhone}
+                              </a>
+                            )}
+                            {customerEmail && (
+                              <div className="text-muted-foreground text-[11px] flex items-center gap-1 mt-0.5 truncate max-w-[160px]">
+                                <Mail className="h-3 w-3 shrink-0" /> {customerEmail}
+                              </div>
+                            )}
+                            {(customerCity || customerState) && (
+                              <div className="text-muted-foreground text-[10px] flex items-center gap-1 mt-0.5">
+                                <MapPin className="h-3 w-3 shrink-0" /> {customerCity}{customerCity && customerState ? ", " : ""}{customerState}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Configured Build Components */}
+                          <td className="py-3.5 px-4 align-top">
+                            {buildItem?.parts && buildItem.parts.length > 0 ? (
+                              <div className="space-y-1.5 max-w-md">
+                                <div className="flex items-center gap-1.5">
+                                  <Cpu className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+                                  <span className="font-bold text-foreground text-xs truncate">
+                                    {buildItem.name}
+                                  </span>
+                                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 shrink-0">
+                                    {buildItem.parts.length} Parts
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-1 gap-1 bg-muted/40 p-2 rounded-lg border border-border/50 text-[11px]">
+                                  {buildItem.parts.map((p, pIdx) => (
+                                    <div key={pIdx} className="flex justify-between items-center gap-2">
+                                      <span className="font-semibold text-muted-foreground text-[10px] uppercase w-24 shrink-0 truncate">
+                                        {p.categoryLabel || p.category}:
+                                      </span>
+                                      <span className="text-foreground truncate flex-1 font-medium">
+                                        {p.name}
+                                      </span>
+                                      <span className="font-mono text-primary font-semibold text-[10px] shrink-0">
+                                        ₹{(p.price || 0).toLocaleString()}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                <span className="font-semibold text-foreground text-xs">
+                                  {buildItem?.name || "Custom PC Build"}
+                                </span>
+                                <p className="text-[11px] text-muted-foreground mt-0.5">
+                                  Qty: {buildItem?.quantity || 1} • Unit: ₹{(buildItem?.price || 0).toLocaleString()}
+                                </p>
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Total Amount */}
+                          <td className="py-3.5 px-4 align-top">
+                            <span className="font-display font-bold text-sm text-emerald-400 block">
+                              ₹{grandTotal.toLocaleString()}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground font-medium block mt-0.5">
+                              Incl. 18% GST
+                            </span>
+                          </td>
+
+                          {/* Order Status */}
+                          <td className="py-3.5 px-4 align-top">
+                            <select
+                              value={currentStatus}
                               onChange={(e) =>
-                                setEditComponentForm((f) => ({ ...f, price: e.target.value }))
+                                handleUpdateStatus(order._id || order.orderId || "", e.target.value)
                               }
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-xs">Specifications</Label>
-                            <Input
-                              value={editComponentForm.specs}
-                              onChange={(e) =>
-                                setEditComponentForm((f) => ({ ...f, specs: e.target.value }))
-                              }
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between gap-4 text-sm">
-                        <div className="flex-1 min-w-0">
-                          <span className="font-semibold">{c.name}</span>
-                          <span className="text-xs text-muted-foreground ml-2">({c.specs})</span>
-                        </div>
-                        <span className="font-mono font-bold text-emerald-400">
-                          ₹{c.price.toLocaleString()}
-                        </span>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8"
-                          onClick={() => startEditComponent(c)}
-                          title="Edit Component Price"
+                              className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
+                                currentStatus === "Pending"
+                                  ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                                  : currentStatus === "Confirmed"
+                                  ? "bg-sky-500/10 text-sky-400 border-sky-500/30"
+                                  : currentStatus === "Processing"
+                                  ? "bg-purple-500/10 text-purple-400 border-purple-500/30"
+                                  : currentStatus === "Shipped"
+                                  ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/30"
+                                  : currentStatus === "Delivered"
+                                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                                  : "bg-rose-500/10 text-rose-400 border-rose-500/30"
+                              }`}
+                            >
+                              <option value="Pending">Pending</option>
+                              <option value="Confirmed">Confirmed</option>
+                              <option value="Processing">Processing</option>
+                              <option value="Shipped">Shipped</option>
+                              <option value="Delivered">Delivered</option>
+                              <option value="Cancelled">Cancelled</option>
+                            </select>
+                          </td>
+
+                          {/* Actions: Print & Download Buttons */}
+                          <td className="py-3.5 px-4 align-top text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {/* Print Button */}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => printOrderInvoice(order)}
+                                className="h-8 px-2.5 text-xs font-semibold gap-1.5 border-sky-500/30 text-sky-400 hover:bg-sky-500/10 cursor-pointer"
+                                title="Print formatted invoice"
+                              >
+                                <Printer className="h-3.5 w-3.5" />
+                                <span>Print</span>
+                              </Button>
+
+                              {/* Download PDF Button */}
+                              <Button
+                                size="sm"
+                                onClick={() => downloadOrderPdf(order)}
+                                className="h-8 px-2.5 text-xs font-semibold gap-1.5 bg-sky-600 hover:bg-sky-700 text-white cursor-pointer shadow-sm"
+                                title="Download official GST Tax Invoice PDF"
+                              >
+                                <FileText className="h-3.5 w-3.5" />
+                                <span>Download</span>
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* SECTION B: ADD NEW HARDWARE COMPONENT FORM (COLLAPSIBLE) */}
+          {showAddComponent && (
+            <div className="rounded-2xl border bg-card p-6 shadow-sm animate-fade-in-up">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-base flex items-center gap-2">
+                  <Plus className="h-4 w-4 text-sky-400" />
+                  <span>Add New Hardware Component to PC Builder</span>
+                </h3>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowAddComponent(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <form onSubmit={handleAddComponent} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Component Name *</Label>
+                    <Input
+                      placeholder="e.g. AMD Ryzen 7 7800X3D"
+                      value={newComponent.name}
+                      onChange={(e) => setNewComponent((p) => ({ ...p, name: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Category *</Label>
+                    <select
+                      value={newComponent.category}
+                      onChange={(e) => setNewComponent((p) => ({ ...p, category: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg bg-secondary text-foreground text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <option value="processor">Processor (CPU)</option>
+                      <option value="motherboard">Motherboard</option>
+                      <option value="ram">Memory (RAM)</option>
+                      <option value="storage">Storage (SSD/HDD)</option>
+                      <option value="gpu">Graphics Card (GPU)</option>
+                      <option value="psu">Power Supply (PSU)</option>
+                      <option value="cooling">CPU Cooler / Cooling</option>
+                      <option value="case">Cabinet / Case</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Price (₹) *</Label>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 36999"
+                      value={newComponent.price}
+                      onChange={(e) => setNewComponent((p) => ({ ...p, price: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Brand</Label>
+                    <Input
+                      placeholder="e.g. AMD, Intel, ASUS, Corsair"
+                      value={newComponent.brand}
+                      onChange={(e) => setNewComponent((p) => ({ ...p, brand: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <Label className="text-xs">Specifications / Highlights</Label>
+                    <Input
+                      placeholder="e.g. 8 Cores, 16 Threads, up to 5.0GHz, 104MB Cache"
+                      value={newComponent.specs}
+                      onChange={(e) => setNewComponent((p) => ({ ...p, specs: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAddComponent(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    className="bg-sky-600 hover:bg-sky-700 text-white"
+                  >
+                    Save Component to Database
+                  </Button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* SECTION C: PC BUILDER HARDWARE CATALOG & LIVE PRICING */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-lg text-foreground">Hardware Catalog & Live Price Editor</h3>
+                <p className="text-xs text-muted-foreground">
+                  Click the pencil icon on any component to adjust its price and specs in real-time. Products added under "Products" matching hardware categories also appear here automatically.
+                </p>
+              </div>
+            </div>
+
+            {componentsLoading ? (
+              <div className="py-20 text-center bg-card rounded-2xl border border-border">
+                <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-muted-foreground text-sm">Fetching components database...</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {Object.entries(componentsGrouped).map(([category, parts]) => (
+                  <div key={category} className="space-y-3 bg-card p-5 rounded-2xl border border-border shadow-sm">
+                    <div className="flex items-center justify-between pb-2 border-b border-border">
+                      <h4 className="text-sm font-bold uppercase tracking-wider text-sky-400 flex items-center gap-2">
+                        <Cpu className="h-4 w-4" />
+                        <span>{category}</span>
+                      </h4>
+                      <span className="text-xs font-semibold text-muted-foreground px-2 py-0.5 rounded-full bg-secondary">
+                        {parts.length} {parts.length === 1 ? "item" : "items"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {parts.map((c) => (
+                        <div
+                          key={c.id}
+                          className="rounded-xl border border-border/70 bg-background/50 p-3.5 hover:border-primary/40 transition-colors"
                         >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    )}
+                          {editingComponentId === c.id ? (
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2">
+                                <h5 className="font-semibold text-xs flex-1 truncate">{c.name}</h5>
+                                <Button size="sm" onClick={() => saveComponentEdit(c.id)} className="h-7 text-xs">
+                                  <Save className="h-3 w-3 mr-1" /> Save
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setEditingComponentId(null)}
+                                  className="h-7 text-xs"
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <Label className="text-[10px]">Price (₹)</Label>
+                                  <Input
+                                    type="number"
+                                    value={editComponentForm.price}
+                                    onChange={(e) =>
+                                      setEditComponentForm((f) => ({ ...f, price: e.target.value }))
+                                    }
+                                    className="h-8 text-xs"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px]">Specifications</Label>
+                                  <Input
+                                    value={editComponentForm.specs}
+                                    onChange={(e) =>
+                                      setEditComponentForm((f) => ({ ...f, specs: e.target.value }))
+                                    }
+                                    className="h-8 text-xs"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between gap-3 text-xs">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold text-foreground truncate">
+                                  {c.brand ? `[${c.brand}] ` : ""}{c.name}
+                                </div>
+                                {c.specs && (
+                                  <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                                    {c.specs}
+                                  </p>
+                                )}
+                              </div>
+                              <span className="font-mono font-bold text-emerald-400 shrink-0 text-sm">
+                                ₹{c.price.toLocaleString()}
+                              </span>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-muted-foreground hover:text-foreground cursor-pointer"
+                                  onClick={() => startEditComponent(c)}
+                                  title="Edit Component Price"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-muted-foreground hover:text-rose-400 cursor-pointer"
+                                  onClick={() => deleteComponent(c.id)}
+                                  title="Remove Component"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
-            ))
-          )}
+            )}
+          </div>
         </div>
       )}
 

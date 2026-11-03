@@ -29,7 +29,15 @@ const orderItemSchema = new mongoose.Schema({
     required: true,
     min: 0,
   },
-}, { _id: false });
+  type: {
+    type: String,
+    default: "product",
+  },
+  parts: {
+    type: [mongoose.Schema.Types.Mixed],
+    default: [],
+  },
+}, { _id: false, strict: false });
 
 const orderSchema = new mongoose.Schema(
   {

@@ -128,6 +128,48 @@ router.post("/", optionalAuth, async (req, res) => {
         }
       }
 
+      // If custom PC build, verify parts and calculate total
+      const isBuild = item.type === "build" || String(rawId).startsWith("build-");
+      let verifiedParts = [];
+
+      if (isBuild && Array.isArray(item.parts) && item.parts.length > 0) {
+        let partsTotal = 0;
+        for (const p of item.parts) {
+          let partPrice = Number(p.price) || 0;
+          let partName = p.name || "Component";
+          let partBrand = p.brand || "";
+          let partSpecs = p.specs || "";
+
+          if (p.id && mongoose.Types.ObjectId.isValid(p.id)) {
+            try {
+              const comp = (await PCComponent.findById(p.id).lean()) || (await Product.findById(p.id).lean());
+              if (comp) {
+                partPrice = comp.price;
+                partName = comp.name || partName;
+                partBrand = comp.brand || partBrand;
+              }
+            } catch {
+              // Keep original snapshot
+            }
+          }
+
+          partsTotal += partPrice;
+          verifiedParts.push({
+            id: p.id ? String(p.id) : undefined,
+            category: p.category || "component",
+            categoryLabel: p.categoryLabel || p.category || "Component",
+            name: partName,
+            price: partPrice,
+            brand: partBrand,
+            specs: partSpecs,
+          });
+        }
+
+        if (partsTotal > 0) {
+          verifiedPrice = partsTotal;
+        }
+      }
+
       // Safeguard price
       if (isNaN(verifiedPrice) || verifiedPrice < 0) {
         verifiedPrice = 0;
@@ -143,6 +185,8 @@ router.post("/", optionalAuth, async (req, res) => {
         price: verifiedPrice,
         quantity: qty,
         subtotal: itemSubtotal,
+        type: isBuild ? "build" : (item.type || "product"),
+        parts: verifiedParts.length > 0 ? verifiedParts : (Array.isArray(item.parts) ? item.parts : []),
       });
     }
 
