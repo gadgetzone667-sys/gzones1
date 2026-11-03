@@ -1,6 +1,27 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Wrench, Camera, Wifi, Laptop, Database, Printer, CheckCircle, Loader2, Calendar, Clock, MapPin, Phone, User as UserIcon, MessageSquare } from "lucide-react";
+import {
+  Wrench,
+  Camera,
+  Wifi,
+  Laptop,
+  Database,
+  Printer,
+  Monitor,
+  Server,
+  Cpu,
+  ShieldCheck,
+  HardDrive,
+  Headphones,
+  CheckCircle,
+  Loader2,
+  Calendar,
+  Clock,
+  MapPin,
+  Phone,
+  User as UserIcon,
+  MessageSquare,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -107,8 +128,27 @@ const DEFAULT_SERVICES: Service[] = [
 ];
 
 const iconMap: Record<string, React.FC<{ className?: string }>> = {
-  Wrench, Camera, Wifi, Laptop, Database, Printer,
+  Wrench,
+  Camera,
+  Wifi,
+  Laptop,
+  Database,
+  Printer,
+  Monitor,
+  Server,
+  Cpu,
+  ShieldCheck,
+  HardDrive,
+  Headphones,
 };
+
+function getServiceIcon(iconName: string): React.FC<{ className?: string }> {
+  if (!iconName) return Wrench;
+  const match = Object.keys(iconMap).find(
+    (k) => k.toLowerCase() === iconName.trim().toLowerCase()
+  );
+  return match ? iconMap[match] : Wrench;
+}
 
 const fadeUp = {
   initial: { opacity: 0, y: 20 },
@@ -268,8 +308,35 @@ const Services = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-7 max-w-6xl mx-auto items-stretch">
             {services.map((s, i) => {
-              const Icon = iconMap[s.icon] || Wrench;
-              const features = Array.isArray(s.features) ? s.features : [];
+              const Icon = getServiceIcon(s.icon);
+              let features = Array.isArray(s.features) ? s.features.filter(Boolean) : [];
+              let description = s.description || "";
+
+              // Normalize legacy entries where features were appended to description
+              if (features.length === 0 && description.includes("Expert assembly")) {
+                const parts = description.split("Expert assembly");
+                description = parts[0].trim();
+                features = [
+                  "Expert component assembly",
+                  "Clean cable routing & management",
+                  "48-hour thermal & stress test",
+                  "1-year assembly warranty",
+                ];
+              } else if (features.length === 0 && s.name?.toLowerCase().includes("cctv")) {
+                features = [
+                  "On-site security survey & planning",
+                  "Full HD & Night Vision camera setup",
+                  "Mobile live monitoring configuration",
+                  "24/7 continuous recording storage",
+                ];
+              } else if (features.length === 0 && s.name?.toLowerCase().includes("printer")) {
+                features = [
+                  "LaserJet & Inkjet full diagnosis",
+                  "Cartridge refilling & toner service",
+                  "Paper feed & roller mechanism fix",
+                  "Wi-Fi & network print configuration",
+                ];
+              }
 
               return (
                 <motion.div
@@ -296,7 +363,7 @@ const Services = () => {
                     {/* SECTION B: Service Description */}
                     <div className="mb-6">
                       <p className="text-sm text-muted-foreground leading-relaxed">
-                        {s.description}
+                        {description}
                       </p>
                     </div>
 

@@ -79,6 +79,21 @@ const defaultServices = [
   },
 ];
 
+function parseFeaturesInput(features) {
+  if (Array.isArray(features)) {
+    return features
+      .map((f) => (typeof f === "string" ? f.trim().replace(/^[\s•\-\*]+/, "") : ""))
+      .filter(Boolean);
+  }
+  if (typeof features === "string") {
+    return features
+      .split(/[\n,]/)
+      .map((f) => f.trim().replace(/^[\s•\-\*]+/, ""))
+      .filter(Boolean);
+  }
+  return [];
+}
+
 // GET /api/services - Fetch all services (auto-seeds defaults if empty)
 router.get("/", async (_req, res) => {
   try {
@@ -87,14 +102,31 @@ router.get("/", async (_req, res) => {
       services = await Service.insertMany(defaultServices);
     }
     res.json(
-      services.map((s) => ({
-        id: s._id.toString(),
-        name: s.name,
-        description: s.description,
-        price: s.price,
-        icon: s.icon,
-        features: s.features || [],
-      }))
+      services.map((s) => {
+        let features = (Array.isArray(s.features) ? s.features : []).filter(Boolean);
+        let desc = s.description || "";
+
+        // Normalize legacy entries that had features appended to the description
+        if (features.length === 0 && desc.includes("Expert assembly")) {
+          const parts = desc.split("Expert assembly");
+          desc = parts[0].trim();
+          features = [
+            "Expert component assembly",
+            "Clean cable routing & management",
+            "48-hour thermal & stress test",
+            "1-year assembly warranty",
+          ];
+        }
+
+        return {
+          id: s._id.toString(),
+          name: s.name,
+          description: desc,
+          price: s.price,
+          icon: s.icon || "Wrench",
+          features,
+        };
+      })
     );
   } catch (err) {
     res.status(500).json({ message: "Server error fetching services.", error: err.message });
@@ -104,13 +136,15 @@ router.get("/", async (_req, res) => {
 // POST /api/services (admin only)
 router.post("/", requireAdmin, async (req, res) => {
   try {
-    const { name, description, price, icon, features } = req.body;
+    const { name, description, price, icon, features, provideService } = req.body;
+    const parsedFeatures = parseFeaturesInput(features || provideService);
+
     const service = await Service.create({
       name,
       description,
       price,
       icon: icon || "Wrench",
-      features: features || [],
+      features: parsedFeatures,
     });
     res.status(201).json({
       id: service._id.toString(),
@@ -128,7 +162,12 @@ router.post("/", requireAdmin, async (req, res) => {
 // PUT /api/services/:id (admin only - update pricing and details)
 router.put("/:id", requireAdmin, async (req, res) => {
   try {
-    const service = await Service.findByIdAndUpdate(req.params.id, req.body, {
+    const updateData = { ...req.body };
+    if (updateData.features || updateData.provideService) {
+      updateData.features = parseFeaturesInput(updateData.features || updateData.provideService);
+    }
+
+    const service = await Service.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
       runValidators: true,
     });

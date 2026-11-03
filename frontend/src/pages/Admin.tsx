@@ -43,6 +43,14 @@ import {
   Boxes,
   CheckSquare,
   Sparkles,
+  Wifi,
+  Laptop,
+  Database,
+  Monitor,
+  Server,
+  HardDrive,
+  Headphones,
+  CheckCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -65,6 +73,45 @@ interface AdminService {
   icon: string;
   features: string[];
 }
+
+
+const SERVICE_ICONS_MAP: Record<string, any> = {
+  Wrench,
+  Camera,
+  Wifi,
+  Laptop,
+  Database,
+  Printer,
+  Monitor,
+  Server,
+  Cpu,
+  ShieldCheck,
+  HardDrive,
+  Headphones,
+};
+
+function getAdminServiceIcon(name: string): any {
+  if (!name) return Wrench;
+  const match = Object.keys(SERVICE_ICONS_MAP).find(
+    (k) => k.toLowerCase() === name.trim().toLowerCase()
+  );
+  return match ? SERVICE_ICONS_MAP[match] : Wrench;
+}
+
+const SERVICE_ICON_OPTIONS = [
+  { value: "Wrench", label: "Hardware & PC Build (Wrench)" },
+  { value: "Camera", label: "CCTV & Security (Camera)" },
+  { value: "Wifi", label: "Networking & Wi-Fi (Wifi)" },
+  { value: "Laptop", label: "Laptop & Chip-Level Fix (Laptop)" },
+  { value: "Database", label: "Data Recovery & Backup (Database)" },
+  { value: "Printer", label: "Printer Repair & Service (Printer)" },
+  { value: "Monitor", label: "Display & Monitor (Monitor)" },
+  { value: "Server", label: "Server & Infrastructure (Server)" },
+  { value: "Cpu", label: "Processor & Tuning (Cpu)" },
+  { value: "ShieldCheck", label: "Antivirus & Protection (ShieldCheck)" },
+  { value: "HardDrive", label: "SSD & Storage Upgrade (HardDrive)" },
+  { value: "Headphones", label: "Audio & Peripherals (Headphones)" },
+];
 
 interface AdminComponent {
   id: string;
@@ -376,9 +423,21 @@ const Admin = () => {
   const [services, setServices] = useState<AdminService[]>([]);
   const [servicesLoading, setServicesLoading] = useState(false);
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
-  const [editServiceForm, setEditServiceForm] = useState({ name: "", price: "", description: "" });
+  const [editServiceForm, setEditServiceForm] = useState({
+    name: "",
+    price: "",
+    description: "",
+    icon: "Wrench",
+    features: "",
+  });
   const [showAddService, setShowAddService] = useState(false);
-  const [newService, setNewService] = useState({ name: "", price: "", description: "", icon: "Wrench" });
+  const [newService, setNewService] = useState({
+    name: "",
+    price: "",
+    description: "",
+    icon: "Wrench",
+    features: "",
+  });
 
   // Components Edit State
   const [componentsGrouped, setComponentsGrouped] = useState<Record<string, AdminComponent[]>>({});
@@ -718,11 +777,22 @@ const Admin = () => {
   // --- Service Functions ---
   const startEditService = (s: AdminService) => {
     setEditingServiceId(s.id);
-    setEditServiceForm({ name: s.name, price: s.price, description: s.description });
+    setEditServiceForm({
+      name: s.name,
+      price: s.price,
+      description: s.description,
+      icon: s.icon || "Wrench",
+      features: Array.isArray(s.features) ? s.features.join("\n") : "",
+    });
   };
 
   const saveServiceEdit = async (id: string) => {
     try {
+      const parsedFeatures = editServiceForm.features
+        .split("\n")
+        .map((f) => f.replace(/^[\s•\-\*]+/, "").trim())
+        .filter(Boolean);
+
       const res = await fetch(`/api/services/${id}`, {
         method: "PUT",
         headers: {
@@ -733,31 +803,47 @@ const Admin = () => {
           name: editServiceForm.name,
           price: editServiceForm.price,
           description: editServiceForm.description,
+          icon: editServiceForm.icon,
+          features: parsedFeatures,
         }),
       });
       if (!res.ok) throw new Error("Failed to update service");
-      toast.success("Service price and details updated.");
+      toast.success("Service details and provided features updated.");
       setEditingServiceId(null);
       fetchAdminServices();
     } catch {
-      toast.error("Failed to update service price.");
+      toast.error("Failed to update service.");
     }
   };
 
   const handleAddService = async () => {
-    if (!newService.name.trim() || !newService.price) return;
+    if (!newService.name.trim() || !newService.price.trim()) {
+      toast.error("Service name and pricing are required.");
+      return;
+    }
     try {
+      const parsedFeatures = newService.features
+        .split("\n")
+        .map((f) => f.replace(/^[\s•\-\*]+/, "").trim())
+        .filter(Boolean);
+
       const res = await fetch("/api/services", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(newService),
+        body: JSON.stringify({
+          name: newService.name.trim(),
+          price: newService.price.trim(),
+          description: newService.description.trim(),
+          icon: newService.icon || "Wrench",
+          features: parsedFeatures,
+        }),
       });
       if (!res.ok) throw new Error("Failed to add service");
       toast.success("New Service created successfully.");
-      setNewService({ name: "", price: "", description: "", icon: "Wrench" });
+      setNewService({ name: "", price: "", description: "", icon: "Wrench", features: "" });
       setShowAddService(false);
       fetchAdminServices();
     } catch {
@@ -1381,134 +1467,368 @@ const Admin = () => {
       {/* TAB 2: SERVICES PRICING & EDITING */}
       {activeTab === "services" && (
         <div className="space-y-6">
+          {/* Header Action Bar */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Wrench className="h-6 w-6 text-purple-400" />
+                <span>Services Management & Pricing</span>
+              </h2>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                Add and edit repair, CCTV, and tech services. Configure icons and point-wise provided services shown to customers.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  fetchAdminServices();
+                  toast.success("Services reloaded.");
+                }}
+                className="gap-1.5 cursor-pointer text-xs"
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> Refresh
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setShowAddService(!showAddService)}
+                className="gap-1.5 bg-purple-600 hover:bg-purple-700 text-white cursor-pointer text-xs font-semibold"
+              >
+                {showAddService ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                {showAddService ? "Cancel" : "Add New Service"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Form: Add New Service */}
           {showAddService && (
-            <div className="rounded-xl border bg-card p-5 mb-6 space-y-4 animate-fade-in-up">
-              <h2 className="font-semibold">New Service</h2>
-              <div className="grid sm:grid-cols-2 gap-4">
+            <div className="rounded-2xl border border-purple-500/30 bg-card p-6 shadow-md animate-fade-in-up space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-border">
+                <h3 className="font-bold text-base text-foreground flex items-center gap-2">
+                  <Plus className="h-4 w-4 text-purple-400" />
+                  <span>Create New Service</span>
+                </h3>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowAddService(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="space-y-1">
-                  <Label>Service Name *</Label>
+                  <Label className="text-xs">Service Name *</Label>
                   <Input
                     value={newService.name}
                     onChange={(e) => setNewService((s) => ({ ...s, name: e.target.value }))}
-                    placeholder="Printer Repair & Service"
+                    placeholder="e.g. Printer Repair & Service"
+                    className="h-9"
+                    required
                   />
                 </div>
+
                 <div className="space-y-1">
-                  <Label>Pricing (e.g. From ₹799) *</Label>
+                  <Label className="text-xs">Pricing (e.g. From ₹799) *</Label>
                   <Input
                     value={newService.price}
                     onChange={(e) => setNewService((s) => ({ ...s, price: e.target.value }))}
-                    placeholder="From ₹799"
+                    placeholder="e.g. From ₹799"
+                    className="h-9"
+                    required
                   />
                 </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs">Service Icon *</Label>
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const SelectedIcon = getAdminServiceIcon(newService.icon);
+                      return (
+                        <div className="w-9 h-9 rounded-lg bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
+                          <SelectedIcon className="h-5 w-5" />
+                        </div>
+                      );
+                    })()}
+                    <select
+                      value={newService.icon}
+                      onChange={(e) => setNewService((s) => ({ ...s, icon: e.target.value }))}
+                      className="w-full h-9 px-2.5 rounded-lg bg-secondary text-foreground text-xs border border-border focus:outline-none focus:ring-1 focus:ring-purple-500 font-medium"
+                    >
+                      {SERVICE_ICON_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
+
               <div className="space-y-1">
-                <Label>Description</Label>
+                <Label className="text-xs">Short Description *</Label>
                 <Textarea
                   value={newService.description}
-                  onChange={(e) =>
-                    setNewService((s) => ({ ...s, description: e.target.value }))
-                  }
-                  placeholder="Service description"
+                  onChange={(e) => setNewService((s) => ({ ...s, description: e.target.value }))}
+                  placeholder="Provide a concise 1-2 sentence overview of what this service covers..."
                   rows={2}
+                  className="text-xs"
                 />
               </div>
-              <Button onClick={handleAddService}>
-                <Save className="h-4 w-4 mr-1" /> Create Service
-              </Button>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-purple-400 flex items-center gap-1.5">
+                    <CheckCircle className="h-3.5 w-3.5" />
+                    <span>Provided Services / Features (Point-Wise, 1 per line) *</span>
+                  </Label>
+                  <span className="text-[10px] text-muted-foreground">Each line becomes an individual bullet with check icon</span>
+                </div>
+                <Textarea
+                  value={newService.features}
+                  onChange={(e) => setNewService((s) => ({ ...s, features: e.target.value }))}
+                  placeholder={"• Free comprehensive diagnostic inspection\n• Original branded replacement parts\n• 48-hour quick turnaround guarantee\n• 90-day post-service warranty coverage"}
+                  rows={4}
+                  className="text-xs font-mono"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAddService(false)}
+                  className="text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleAddService}
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs gap-1.5"
+                >
+                  <Save className="h-3.5 w-3.5" /> Create Service
+                </Button>
+              </div>
             </div>
           )}
 
+          {/* Services List */}
           {servicesLoading ? (
-            <div className="py-20 text-center">
+            <div className="py-20 text-center bg-card rounded-2xl border border-border">
               <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Fetching services...</p>
+              <p className="text-muted-foreground text-sm">Fetching services...</p>
+            </div>
+          ) : services.length === 0 ? (
+            <div className="py-16 text-center bg-card rounded-2xl border border-border">
+              <Wrench className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
+              <h4 className="font-semibold text-base">No Services Found</h4>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1">
+                Click "Add New Service" above to add your first tech repair or installation offering.
+              </p>
             </div>
           ) : (
             <div className="space-y-4">
-              {services.map((s, idx) => (
-                <div
-                  key={s.id}
-                  className="rounded-xl border bg-card p-5 animate-fade-in-up"
-                  style={{ animationDelay: `${0.05 * idx}s` }}
-                >
-                  {editingServiceId === s.id ? (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <Input
-                          value={editServiceForm.name}
-                          onChange={(e) =>
-                            setEditServiceForm((f) => ({ ...f, name: e.target.value }))
-                          }
-                          className="font-bold flex-1"
-                        />
-                        <Button size="sm" onClick={() => saveServiceEdit(s.id)}>
-                          <Save className="h-3.5 w-3.5 mr-1" /> Save Service
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setEditingServiceId(null)}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
+              {services.map((s, idx) => {
+                const ServiceIcon = getAdminServiceIcon(s.icon);
+                const isEditing = editingServiceId === s.id;
+                const featuresList = Array.isArray(s.features) ? s.features.filter(Boolean) : [];
+
+                return (
+                  <div
+                    key={s.id || idx}
+                    className="rounded-2xl border bg-card p-5 shadow-sm transition-all hover:border-purple-500/30 animate-fade-in-up"
+                    style={{ animationDelay: `${0.04 * idx}s` }}
+                  >
+                    {isEditing ? (
+                      /* Edit Mode Form */
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between pb-2 border-b border-border">
+                          <h4 className="font-bold text-sm text-purple-400 flex items-center gap-2">
+                            <Pencil className="h-4 w-4" />
+                            <span>Edit Service: {s.name}</span>
+                          </h4>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setEditingServiceId(null)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Service Name</Label>
+                            <Input
+                              value={editServiceForm.name}
+                              onChange={(e) =>
+                                setEditServiceForm((f) => ({ ...f, name: e.target.value }))
+                              }
+                              className="h-8 font-semibold"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <Label className="text-xs">Pricing Text</Label>
+                            <Input
+                              value={editServiceForm.price}
+                              onChange={(e) =>
+                                setEditServiceForm((f) => ({ ...f, price: e.target.value }))
+                              }
+                              className="h-8"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <Label className="text-xs">Service Icon</Label>
+                            <div className="flex items-center gap-2">
+                              {(() => {
+                                const IconPreview = getAdminServiceIcon(editServiceForm.icon);
+                                return (
+                                  <div className="w-8 h-8 rounded-lg bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
+                                    <IconPreview className="h-4 w-4" />
+                                  </div>
+                                );
+                              })()}
+                              <select
+                                value={editServiceForm.icon}
+                                onChange={(e) =>
+                                  setEditServiceForm((f) => ({ ...f, icon: e.target.value }))
+                                }
+                                className="w-full h-8 px-2 rounded-lg bg-secondary text-foreground text-xs border border-border"
+                              >
+                                {SERVICE_ICON_OPTIONS.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-xs">Short Description</Label>
+                          <Textarea
+                            value={editServiceForm.description}
+                            onChange={(e) =>
+                              setEditServiceForm((f) => ({ ...f, description: e.target.value }))
+                            }
+                            rows={2}
+                            className="text-xs"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-xs font-semibold text-purple-400 flex items-center gap-1.5">
+                            <CheckCircle className="h-3.5 w-3.5" />
+                            <span>Provided Services / Features (Point-Wise, 1 per line)</span>
+                          </Label>
+                          <Textarea
+                            value={editServiceForm.features}
+                            onChange={(e) =>
+                              setEditServiceForm((f) => ({ ...f, features: e.target.value }))
+                            }
+                            rows={4}
+                            className="text-xs font-mono"
+                          />
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setEditingServiceId(null)}
+                            className="text-xs"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => saveServiceEdit(s.id)}
+                            className="bg-purple-600 hover:bg-purple-700 text-white text-xs gap-1 font-semibold"
+                          >
+                            <Save className="h-3.5 w-3.5 mr-1" /> Save Changes
+                          </Button>
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs font-semibold text-emerald-400">
-                          Pricing Text (e.g. From ₹1,999)
-                        </Label>
-                        <Input
-                          value={editServiceForm.price}
-                          onChange={(e) =>
-                            setEditServiceForm((f) => ({ ...f, price: e.target.value }))
-                          }
-                        />
+                    ) : (
+                      /* View Mode Card with Icon + Title + Description + Point-Wise Features */
+                      <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+                        <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                          {/* Service Icon Badge */}
+                          <div className="w-12 h-12 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 shadow-inner shrink-0 mt-0.5">
+                            <ServiceIcon className="h-6 w-6 stroke-[2]" />
+                          </div>
+
+                          <div className="space-y-1.5 flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="font-bold text-base text-foreground tracking-tight">
+                                {s.name}
+                              </h3>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                                {s.icon || "Wrench"}
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                              {s.description}
+                            </p>
+
+                            {/* Provided Services (Point-Wise) */}
+                            {featuresList.length > 0 && (
+                              <div className="pt-2 mt-2 border-t border-border/50">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5">
+                                  Provided Services / Key Highlights ({featuresList.length} points):
+                                </span>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 bg-muted/40 p-2.5 rounded-xl border border-border/50 text-xs">
+                                  {featuresList.map((feat, fIdx) => (
+                                    <div key={fIdx} className="flex items-start gap-1.5 text-foreground/90 font-medium">
+                                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                                      <span className="leading-snug">{feat}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Price and Action Buttons */}
+                        <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-border">
+                          <span className="font-display font-extrabold text-emerald-400 text-lg sm:text-xl">
+                            {s.price}
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-2.5 text-xs font-semibold gap-1 border-purple-500/30 text-purple-400 hover:bg-purple-500/10 cursor-pointer"
+                              onClick={() => startEditService(s)}
+                              title="Edit Service Details, Icon & Features"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              <span>Edit</span>
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-destructive hover:bg-destructive/10 cursor-pointer"
+                              onClick={() => handleDeleteService(s.id)}
+                              title="Delete Service"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs font-semibold">Description</Label>
-                        <Textarea
-                          value={editServiceForm.description}
-                          onChange={(e) =>
-                            setEditServiceForm((f) => ({ ...f, description: e.target.value }))
-                          }
-                          rows={2}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="space-y-1 flex-1">
-                        <h3 className="font-bold text-base">{s.name}</h3>
-                        <p className="text-xs text-muted-foreground line-clamp-2">
-                          {s.description}
-                        </p>
-                      </div>
-                      <span className="font-mono font-bold text-emerald-400 text-lg shrink-0">
-                        {s.price}
-                      </span>
-                      <div className="flex gap-1 shrink-0">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8"
-                          onClick={() => startEditService(s)}
-                          title="Edit Service Price"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 text-destructive"
-                          onClick={() => handleDeleteService(s.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
