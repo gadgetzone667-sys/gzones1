@@ -26,6 +26,8 @@ export interface OrderCustomer {
   email: string;
   phone: string;
   alternatePhone?: string;
+  company?: string;
+  gstin?: string;
 }
 
 export interface OrderShippingAddress {
@@ -56,6 +58,8 @@ export interface Order {
   trackingId?: string;
   courier?: string;
   estimatedDeliveryDate?: string;
+  isBulkOrder?: boolean;
+  bulkQuantity?: number;
   createdAt: string;
   updatedAt?: string;
 
@@ -444,6 +448,8 @@ export function printOrderInvoice(order: Order): void {
           <div>
             <strong>BILLED & SHIPPED TO:</strong><br>
             <strong>${customerName}</strong><br>
+            ${order.customer?.company ? `<strong>Company:</strong> ${order.customer.company}<br>` : ""}
+            ${order.customer?.gstin ? `<strong>GSTIN:</strong> ${order.customer.gstin}<br>` : ""}
             Phone: ${customerPhone}<br>
             Email: ${customerEmail}<br>
             Address: ${fullAddress}
@@ -643,11 +649,15 @@ export function downloadOrderPdf(order: Order): void {
   doc.text(order.paymentStatus || 'Pending on Delivery', pageWidth - margin - 2, currentY + 19.5, { align: 'right' });
 
   // 3. Buyer / Delivery Destination Info Box
+  const hasCompany = Boolean(order.customer?.company);
+  const hasGstin = Boolean(order.customer?.gstin);
+  const buyerBoxHeight = hasCompany || hasGstin ? 24 : 18;
+
   currentY += 26;
   doc.setFillColor(...lightBg);
-  doc.roundedRect(margin, currentY, contentWidth, 18, 1.5, 1.5, 'F');
+  doc.roundedRect(margin, currentY, contentWidth, buyerBoxHeight, 1.5, 1.5, 'F');
   doc.setDrawColor(...borderLight);
-  doc.roundedRect(margin, currentY, contentWidth, 18, 1.5, 1.5, 'S');
+  doc.roundedRect(margin, currentY, contentWidth, buyerBoxHeight, 1.5, 1.5, 'S');
 
   const customerName = order.customer?.name || order.shippingInfo?.name || 'Customer';
   const customerPhone = order.customer?.phone || order.shippingInfo?.phone || 'N/A';
@@ -666,12 +676,21 @@ export function downloadOrderPdf(order: Order): void {
   doc.setFontSize(8.5);
   doc.text(customerName, margin + 3, currentY + 8.5);
 
+  let addressY = currentY + 12.5;
+  if (hasCompany) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...primaryColor);
+    doc.text(`Company: ${order.customer!.company}`, margin + 3, addressY);
+    addressY += 4;
+  }
+
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(...mutedColor);
   const cleanAddr = `${shippingAddress}${shippingCity && !shippingAddress.includes(shippingCity) ? ', ' + shippingCity : ''} - ${shippingPin}`;
   const splitAddr = doc.splitTextToSize(cleanAddr, 105);
-  doc.text(splitAddr, margin + 3, currentY + 12.5);
+  doc.text(splitAddr, margin + 3, addressY);
 
   // Contact details on the right of Bill To box
   doc.setFont('helvetica', 'bold');
@@ -688,16 +707,24 @@ export function downloadOrderPdf(order: Order): void {
   doc.setTextColor(...mutedColor);
   doc.text(customerEmail, margin + 145, currentY + 8.5);
 
+  if (hasGstin) {
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...primaryColor);
+    doc.text('Buyer GSTIN:', margin + 115, currentY + 12.5);
+    doc.text(order.customer!.gstin!, margin + 145, currentY + 12.5);
+  }
+
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...darkColor);
-  doc.text('Place of Supply:', margin + 115, currentY + 12.5);
+  const posLabelY = hasGstin ? currentY + 16.5 : currentY + 12.5;
+  doc.text('Place of Supply:', margin + 115, posLabelY);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...mutedColor);
   const isIntraState = shippingState.toLowerCase().includes('tamil nadu') || shippingState.toLowerCase().includes('tn');
-  doc.text(`${shippingState} ${isIntraState ? '(State Code: 33)' : ''}`, margin + 145, currentY + 12.5);
+  doc.text(`${shippingState} ${isIntraState ? '(State Code: 33)' : ''}`, margin + 145, posLabelY);
 
   // 4. Products Table
-  currentY += 23;
+  currentY += buyerBoxHeight + 5;
 
   const colX = {
     idx: margin + 2,
@@ -733,7 +760,7 @@ export function downloadOrderPdf(order: Order): void {
   const grandTotal = order.grandTotal ?? order.totalPrice ?? 0;
 
   items.forEach((item, index) => {
-    const qty = item.quantity || 1;
+    const qty = (item.quantity && item.quantity > 1) ? item.quantity : (order.bulkQuantity || item.quantity || 1);
     const itemTotalGross = (item.price || 0) * qty;
 
     // Proper Indian GST inclusive reverse calculation:

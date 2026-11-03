@@ -34,6 +34,8 @@ router.post("/", optionalAuth, async (req, res) => {
       email: (customer?.email || req.body.email || req.user?.email || "").trim().toLowerCase(),
       phone: (customer?.phone || shippingInfo?.phone || "").trim(),
       alternatePhone: (customer?.alternatePhone || shippingInfo?.alternatePhone || "").trim(),
+      company: (customer?.company || "").trim(),
+      gstin: (customer?.gstin || "").trim().toUpperCase(),
     };
 
     // Normalize shipping address details
@@ -191,9 +193,17 @@ router.post("/", optionalAuth, async (req, res) => {
     }
 
     const deliveryCharges = 0; // Free delivery policy
-    const grandTotal = calculatedSubtotal + deliveryCharges;
+    const effectiveSubtotal = (req.user?.isAdmin && req.body.subtotal !== undefined)
+      ? Number(req.body.subtotal)
+      : calculatedSubtotal;
+    const effectiveGrandTotal = (req.user?.isAdmin && req.body.grandTotal !== undefined)
+      ? Number(req.body.grandTotal)
+      : (effectiveSubtotal + deliveryCharges);
 
-    const uniqueOrderId = req.body.orderId || generateOrderId();
+    const isBulk = Boolean(req.body.isBulkOrder) || (Number(req.body.bulkQuantity) > 1);
+    const bulkQty = Number(req.body.bulkQuantity) || verifiedItems[0]?.quantity || 1;
+
+    const uniqueOrderId = req.body.orderId || (isBulk ? `GZ-BULK-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(1000 + Math.random() * 9000)}` : generateOrderId());
     const trackingId = req.body.trackingId || `TRK-GZ-${Math.floor(100000 + Math.random() * 900000)}`;
 
     const newOrder = await Order.create({
@@ -202,13 +212,15 @@ router.post("/", optionalAuth, async (req, res) => {
       customer: customerData,
       shippingAddress: shippingData,
       items: verifiedItems,
-      subtotal: calculatedSubtotal,
+      subtotal: effectiveSubtotal,
       deliveryCharges,
-      grandTotal,
+      grandTotal: effectiveGrandTotal,
       paymentMethod,
-      paymentStatus: "Pending",
-      orderStatus: "Pending",
-      trackingStage: 1,
+      paymentStatus: req.body.paymentStatus || "Pending",
+      orderStatus: req.body.orderStatus || "Pending",
+      isBulkOrder: isBulk,
+      bulkQuantity: bulkQty,
+      trackingStage: req.body.orderStatus === "Confirmed" ? 2 : 1,
       trackingId,
       courier: "SpeedPost Express",
       estimatedDeliveryDate: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toLocaleDateString(undefined, {
@@ -230,6 +242,47 @@ router.post("/", optionalAuth, async (req, res) => {
       message: "Server error creating order.",
       error: err.message,
     });
+  }
+});
+
+// PATCH /api/orders/bulk-status - Bulk update status for multiple selected orders (Admin only)
+router.patch("/bulk-status", requireAdmin, async (req, res) => {
+  try {
+    const { orderIds, status } = req.body;
+    if (!Array.isArray(orderIds) || orderIds.length === 0 || !status) {
+      return res.status(400).json({ message: "Valid orderIds array and status are required." });
+    }
+
+    const calcStage =
+      status === "Pending" ? 1 :
+      status === "Confirmed" || status === "Processing" ? 2 :
+      status === "Shipped" ? 3 :
+      status === "Delivered" ? 4 : 0;
+
+    const result = await Order.updateMany(
+      {
+        $or: [
+          { _id: { $in: orderIds.filter((id) => mongoose.Types.ObjectId.isValid(id)) } },
+          { orderId: { $in: orderIds } }
+        ]
+      },
+      {
+        $set: {
+          orderStatus: status,
+          status,
+          trackingStage: calcStage
+        }
+      }
+    );
+
+    res.json({
+      success: true,
+      modifiedCount: result.modifiedCount,
+      message: `Successfully updated ${result.modifiedCount} orders to ${status}.`
+    });
+  } catch (err) {
+    console.error("Bulk status update error:", err);
+    res.status(500).json({ message: "Server error updating bulk status.", error: err.message });
   }
 });
 

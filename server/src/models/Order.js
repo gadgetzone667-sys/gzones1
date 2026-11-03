@@ -57,6 +57,17 @@ const orderSchema = new mongoose.Schema(
       email: { type: String, required: true, trim: true, lowercase: true },
       phone: { type: String, required: true, trim: true },
       alternatePhone: { type: String, default: "", trim: true },
+      company: { type: String, default: "", trim: true },
+      gstin: { type: String, default: "", trim: true },
+    },
+    isBulkOrder: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    bulkQuantity: {
+      type: Number,
+      default: 1,
     },
     shippingAddress: {
       address: { type: String, required: true },

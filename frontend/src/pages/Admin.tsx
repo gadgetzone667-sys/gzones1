@@ -39,6 +39,10 @@ import {
   Phone,
   Mail,
   MapPin,
+  Building2,
+  Boxes,
+  CheckSquare,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -159,12 +163,59 @@ const Admin = () => {
     };
   }, [orders]);
 
-  // Section: Placed Build PC Orders
+  // Section: Placed Build PC Orders & Bulk Order Management
   const [buildOrdersSearch, setBuildOrdersSearch] = useState("");
   const [buildOrdersStatus, setBuildOrdersStatus] = useState("all");
+  const [buildOrdersTypeFilter, setBuildOrdersTypeFilter] = useState<"all" | "bulk" | "individual">("all");
+  const [selectedBuildOrderIds, setSelectedBuildOrderIds] = useState<string[]>([]);
+  const [bulkBatchStatus, setBulkBatchStatus] = useState<string>("Confirmed");
+  const [bulkStatusUpdating, setBulkStatusUpdating] = useState(false);
+  const [seedingLoading, setSeedingLoading] = useState(false);
+
+  // Modal for placing bulk custom PC orders
+  const [showBulkOrderModal, setShowBulkOrderModal] = useState(false);
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [bulkBuildQty, setBulkBuildQty] = useState<number>(5);
+  const [bulkDiscountPercent, setBulkDiscountPercent] = useState<number>(0);
+  const [bulkAssemblyNotes, setBulkAssemblyNotes] = useState("");
+  const [bulkSelections, setBulkSelections] = useState<{
+    processor: any | null;
+    motherboard: any | null;
+    ram: any | null;
+    storage: any | null;
+    gpu: any | null;
+    psu: any | null;
+    cooling: any | null;
+    case: any | null;
+  }>({
+    processor: null,
+    motherboard: null,
+    ram: null,
+    storage: null,
+    gpu: null,
+    psu: null,
+    cooling: null,
+    case: null,
+  });
+  const [bulkCustomer, setBulkCustomer] = useState({
+    name: "",
+    company: "",
+    gstin: "",
+    phone: "",
+    email: "",
+    address: "",
+    city: "Chennai",
+    state: "Tamil Nadu",
+    pincode: "600107",
+    paymentMethod: "Bank Transfer (NEFT/RTGS)",
+    paymentStatus: "Paid",
+    orderStatus: "Confirmed",
+  });
 
   const buildOrders = useMemo(() => {
     return orders.filter((o) =>
+      Boolean(o.isBulkOrder) ||
+      (Number(o.bulkQuantity) > 1) ||
       o.items?.some(
         (i) =>
           i.type === "build" ||
@@ -178,11 +229,18 @@ const Admin = () => {
   const filteredBuildOrders = useMemo(() => {
     return buildOrders.filter((order) => {
       const q = buildOrdersSearch.toLowerCase().trim();
+      const isBulk = Boolean(order.isBulkOrder) || (Number(order.bulkQuantity) > 1);
+
+      if (buildOrdersTypeFilter === "bulk" && !isBulk) return false;
+      if (buildOrdersTypeFilter === "individual" && isBulk) return false;
+
       const matchesSearch =
         !q ||
         (order.orderId && order.orderId.toLowerCase().includes(q)) ||
         (order._id && order._id.toLowerCase().includes(q)) ||
         (order.customer?.name && order.customer.name.toLowerCase().includes(q)) ||
+        (order.customer?.company && order.customer.company.toLowerCase().includes(q)) ||
+        (order.customer?.gstin && order.customer.gstin.toLowerCase().includes(q)) ||
         (order.customer?.phone && order.customer.phone.includes(q)) ||
         (order.customer?.email && order.customer.email.toLowerCase().includes(q)) ||
         order.items?.some(
@@ -202,7 +260,7 @@ const Admin = () => {
 
       return matchesSearch && matchesStatus;
     });
-  }, [buildOrders, buildOrdersSearch, buildOrdersStatus]);
+  }, [buildOrders, buildOrdersSearch, buildOrdersStatus, buildOrdersTypeFilter]);
 
   // Section 8: Search, Filter, Sort
   const filteredAndSortedOrders = useMemo(() => {
@@ -795,6 +853,181 @@ const Admin = () => {
       toast.error("Failed to delete component.");
     }
   };
+  const handleSeedComponents = async () => {
+    setSeedingLoading(true);
+    try {
+      const res = await fetch("/api/components/seed", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to seed hardware catalog");
+      toast.success(data.message || "Standard components seeded across all categories!");
+      await fetchAdminComponents();
+    } catch (err: any) {
+      toast.error(err.message || "Error seeding hardware catalog.");
+    } finally {
+      setSeedingLoading(false);
+    }
+  };
+
+  const handleBulkBatchStatusUpdate = async () => {
+    if (selectedBuildOrderIds.length === 0) {
+      toast.error("Please select at least one build order.");
+      return;
+    }
+    setBulkStatusUpdating(true);
+    try {
+      const res = await fetch("/api/orders/bulk-status", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderIds: selectedBuildOrderIds,
+          status: bulkBatchStatus,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to update orders");
+      toast.success(data.message || `Updated ${selectedBuildOrderIds.length} orders to ${bulkBatchStatus}!`);
+      setSelectedBuildOrderIds([]);
+      await fetchAllOrders(false);
+    } catch (err: any) {
+      toast.error(err.message || "Error updating bulk order status.");
+    } finally {
+      setBulkStatusUpdating(false);
+    }
+  };
+
+  const handleBulkPrintInvoices = () => {
+    if (selectedBuildOrderIds.length === 0) {
+      toast.error("Please select orders to print.");
+      return;
+    }
+    const ordersToPrint = buildOrders.filter((o) =>
+      selectedBuildOrderIds.includes(o._id || o.orderId || "")
+    );
+    ordersToPrint.forEach((ord) => printOrderInvoice(ord));
+    toast.success(`Sent ${ordersToPrint.length} invoices to printer preview.`);
+  };
+
+  const handleBulkDownloadPdfs = () => {
+    if (selectedBuildOrderIds.length === 0) {
+      toast.error("Please select orders to download.");
+      return;
+    }
+    const ordersToDownload = buildOrders.filter((o) =>
+      selectedBuildOrderIds.includes(o._id || o.orderId || "")
+    );
+    ordersToDownload.forEach((ord, idx) => {
+      setTimeout(() => downloadOrderPdf(ord), idx * 250);
+    });
+    toast.success(`Downloading ${ordersToDownload.length} GST Invoices...`);
+  };
+
+  const handlePlaceBulkBuildOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const selectedPartsList = Object.entries(bulkSelections)
+      .filter(([_, comp]) => Boolean(comp))
+      .map(([cat, comp]) => ({
+        category: cat,
+        categoryLabel: cat.toUpperCase(),
+        name: comp.name,
+        price: Number(comp.price) || 0,
+        specs: comp.specs || "",
+      }));
+
+    if (selectedPartsList.length === 0) {
+      toast.error("Please choose at least 1 hardware component for this custom build.");
+      return;
+    }
+
+    if (!bulkCustomer.name.trim() || !bulkCustomer.phone.trim()) {
+      toast.error("Client name and contact phone are required.");
+      return;
+    }
+
+    const qty = Math.max(1, Number(bulkBuildQty) || 1);
+    const unitPrice = selectedPartsList.reduce((sum, p) => sum + p.price, 0);
+    const rawSubtotal = unitPrice * qty;
+    const discountAmt = Math.round((rawSubtotal * (Number(bulkDiscountPercent) || 0)) / 100);
+    const grandTotal = Math.max(0, rawSubtotal - discountAmt);
+
+    setBulkSubmitting(true);
+    try {
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          isBulkOrder: true,
+          bulkQuantity: qty,
+          customer: {
+            name: bulkCustomer.name.trim(),
+            company: bulkCustomer.company.trim(),
+            gstin: bulkCustomer.gstin.trim(),
+            email: bulkCustomer.email.trim() || "orders@gadgetzone.in",
+            phone: bulkCustomer.phone.trim(),
+          },
+          shippingAddress: {
+            address: bulkCustomer.address.trim() || "Commercial Delivery Depot",
+            city: bulkCustomer.city.trim() || "Chennai",
+            state: bulkCustomer.state.trim() || "Tamil Nadu",
+            pincode: bulkCustomer.pincode.trim() || "600107",
+          },
+          items: [
+            {
+              type: "build",
+              productId: `build-bulk-${Date.now()}`,
+              name: `Custom Bulk PC Build (${qty} Systems)${bulkCustomer.company ? ` - ${bulkCustomer.company}` : ""}`,
+              price: Math.round(grandTotal / qty),
+              quantity: qty,
+              parts: selectedPartsList,
+            },
+          ],
+          subtotal: grandTotal,
+          grandTotal: grandTotal,
+          paymentMethod: bulkCustomer.paymentMethod,
+          paymentStatus: bulkCustomer.paymentStatus,
+          orderStatus: bulkCustomer.orderStatus,
+          notes: bulkAssemblyNotes.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to place bulk build order");
+
+      toast.success(`Bulk PC Order placed successfully! Order ID: #${data.order?.orderId || data.orderId || "NEW"}`);
+      setShowBulkOrderModal(false);
+      // Reset form
+      setBulkSelections({
+        processor: null,
+        motherboard: null,
+        ram: null,
+        storage: null,
+        gpu: null,
+        psu: null,
+        cooling: null,
+        case: null,
+      });
+      setBulkBuildQty(5);
+      setBulkDiscountPercent(0);
+      setBulkAssemblyNotes("");
+      await fetchAllOrders(false);
+    } catch (err: any) {
+      toast.error(err.message || "Error submitting bulk build order.");
+    } finally {
+      setBulkSubmitting(false);
+    }
+  };
+
 
   const handleDeleteReview = async (id: string) => {
     try {
@@ -1292,10 +1525,10 @@ const Admin = () => {
                 <span>PC Builder & Custom Build Orders</span>
               </h2>
               <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-                Monitor placed customer custom PC builds with instant GST invoice printing & PDF download, and manage live hardware components database.
+                Monitor customer custom PC builds with instant GST invoice printing & PDF download, place & manage bulk multi-unit builds, and maintain the hardware catalog.
               </p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               <Button
                 variant="outline"
                 size="sm"
@@ -1309,9 +1542,28 @@ const Admin = () => {
                 <RefreshCw className="h-3.5 w-3.5" /> Refresh
               </Button>
               <Button
+                variant="outline"
+                size="sm"
+                disabled={seedingLoading}
+                onClick={handleSeedComponents}
+                className="gap-1.5 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 cursor-pointer text-xs font-semibold"
+                title="Populate standard gaming & workstation hardware components across all 8 categories"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                {seedingLoading ? "Seeding..." : "Seed Hardware Catalog"}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setShowBulkOrderModal(true)}
+                className="gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white cursor-pointer text-xs font-bold shadow-sm"
+              >
+                <Boxes className="h-3.5 w-3.5" />
+                Place Bulk Build Order
+              </Button>
+              <Button
                 size="sm"
                 onClick={() => setShowAddComponent(!showAddComponent)}
-                className="gap-1.5 bg-sky-600 hover:bg-sky-700 text-white cursor-pointer text-xs"
+                className="gap-1.5 bg-sky-600 hover:bg-sky-700 text-white cursor-pointer text-xs font-semibold"
               >
                 {showAddComponent ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
                 {showAddComponent ? "Cancel" : "Add Hardware Part"}
@@ -1326,15 +1578,15 @@ const Admin = () => {
               <span className="text-2xl font-bold font-display text-sky-400">{buildOrders.length}</span>
             </div>
             <div className="bg-card p-4 rounded-xl border border-border shadow-sm">
-              <span className="text-[11px] font-semibold uppercase text-muted-foreground tracking-wider block">Pending Builds</span>
-              <span className="text-2xl font-bold font-display text-amber-400">
-                {buildOrders.filter(o => (o.orderStatus || o.status || "Pending") === "Pending").length}
+              <span className="text-[11px] font-semibold uppercase text-muted-foreground tracking-wider block">Bulk Orders</span>
+              <span className="text-2xl font-bold font-display text-purple-400">
+                {buildOrders.filter((o) => Boolean(o.isBulkOrder) || (Number(o.bulkQuantity) > 1)).length}
               </span>
             </div>
             <div className="bg-card p-4 rounded-xl border border-border shadow-sm">
               <span className="text-[11px] font-semibold uppercase text-muted-foreground tracking-wider block">In Production</span>
               <span className="text-2xl font-bold font-display text-indigo-400">
-                {buildOrders.filter(o => ["Confirmed", "Processing", "Shipped"].includes(o.orderStatus || o.status || "")).length}
+                {buildOrders.filter((o) => ["Confirmed", "Processing", "Shipped"].includes(o.orderStatus || o.status || "")).length}
               </span>
             </div>
             <div className="bg-card p-4 rounded-xl border border-border shadow-sm">
@@ -1362,7 +1614,7 @@ const Admin = () => {
                 <div className="relative w-full sm:w-72">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                   <Input
-                    placeholder="Search by customer, phone, ID..."
+                    placeholder="Search by customer, company, GSTIN, ID..."
                     value={buildOrdersSearch}
                     onChange={(e) => setBuildOrdersSearch(e.target.value)}
                     className="pl-9 h-9 text-xs"
@@ -1378,25 +1630,122 @@ const Admin = () => {
                 </div>
               </div>
 
-              {/* Status Filter Badges */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-                {["all", "Pending", "Confirmed", "Processing", "Shipped", "Delivered", "Cancelled"].map((st) => (
+              {/* Order Type & Status Filter Bars */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+                  <span className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground shrink-0">Type:</span>
                   <button
-                    key={st}
-                    onClick={() => setBuildOrdersStatus(st)}
-                    className={`px-3 py-1 rounded-lg font-medium transition-all shrink-0 cursor-pointer ${
-                      buildOrdersStatus.toLowerCase() === st.toLowerCase()
+                    onClick={() => setBuildOrdersTypeFilter("all")}
+                    className={`px-3 py-1 rounded-lg font-semibold transition-all shrink-0 cursor-pointer ${
+                      buildOrdersTypeFilter === "all"
                         ? "bg-sky-600 text-white shadow-sm"
                         : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
                     }`}
                   >
-                    {st === "all" ? "All Orders" : st}
-                    {st === "all"
-                      ? ` (${buildOrders.length})`
-                      : ` (${buildOrders.filter((o) => (o.orderStatus || o.status || "Pending").toLowerCase() === st.toLowerCase()).length})`}
+                    All Builds ({buildOrders.length})
                   </button>
-                ))}
+                  <button
+                    onClick={() => setBuildOrdersTypeFilter("bulk")}
+                    className={`px-3 py-1 rounded-lg font-semibold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                      buildOrdersTypeFilter === "bulk"
+                        ? "bg-purple-600 text-white shadow-sm"
+                        : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    <Boxes className="h-3 w-3" />
+                    Bulk Orders ({buildOrders.filter((o) => Boolean(o.isBulkOrder) || (Number(o.bulkQuantity) > 1)).length})
+                  </button>
+                  <button
+                    onClick={() => setBuildOrdersTypeFilter("individual")}
+                    className={`px-3 py-1 rounded-lg font-semibold transition-all shrink-0 cursor-pointer ${
+                      buildOrdersTypeFilter === "individual"
+                        ? "bg-sky-600 text-white shadow-sm"
+                        : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    Single Builds ({buildOrders.filter((o) => !o.isBulkOrder && (!o.bulkQuantity || Number(o.bulkQuantity) <= 1)).length})
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                  <span className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground shrink-0">Status:</span>
+                  {["all", "Pending", "Confirmed", "Processing", "Shipped", "Delivered", "Cancelled"].map((st) => (
+                    <button
+                      key={st}
+                      onClick={() => setBuildOrdersStatus(st)}
+                      className={`px-2.5 py-1 rounded-lg font-medium transition-all shrink-0 cursor-pointer ${
+                        buildOrdersStatus.toLowerCase() === st.toLowerCase()
+                          ? "bg-sky-600 text-white shadow-sm"
+                          : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      }`}
+                    >
+                      {st === "all" ? "All" : st}
+                      {st === "all"
+                        ? ` (${buildOrders.length})`
+                        : ` (${buildOrders.filter((o) => (o.orderStatus || o.status || "Pending").toLowerCase() === st.toLowerCase()).length})`}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {/* Floating Bulk Operations Toolbar */}
+              {selectedBuildOrderIds.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-sky-500/15 via-purple-500/15 to-sky-500/15 border border-sky-500/30 p-3 rounded-xl animate-fade-in shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <CheckSquare className="h-4 w-4 text-sky-400" />
+                    <span className="text-xs font-bold text-foreground">
+                      {selectedBuildOrderIds.length} {selectedBuildOrderIds.length === 1 ? "order" : "orders"} selected
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={bulkBatchStatus}
+                      onChange={(e) => setBulkBatchStatus(e.target.value)}
+                      className="px-2.5 py-1 text-xs rounded-lg bg-secondary border border-border text-foreground font-semibold focus:outline-none"
+                    >
+                      <option value="Confirmed">Mark as Confirmed</option>
+                      <option value="Processing">Mark as In Assembly (Processing)</option>
+                      <option value="Shipped">Mark as Shipped</option>
+                      <option value="Delivered">Mark as Delivered</option>
+                      <option value="Cancelled">Mark as Cancelled</option>
+                    </select>
+                    <Button
+                      size="sm"
+                      disabled={bulkStatusUpdating}
+                      onClick={handleBulkBatchStatusUpdate}
+                      className="h-8 px-3 text-xs bg-sky-600 hover:bg-sky-700 text-white font-semibold cursor-pointer"
+                    >
+                      {bulkStatusUpdating ? "Updating..." : "Apply Status to Selected"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleBulkPrintInvoices}
+                      className="h-8 px-2.5 text-xs gap-1 border-sky-500/30 text-sky-400 hover:bg-sky-500/10 cursor-pointer"
+                      title="Print invoices for all selected orders"
+                    >
+                      <Printer className="h-3.5 w-3.5" /> Print Selected
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleBulkDownloadPdfs}
+                      className="h-8 px-2.5 text-xs gap-1 border-sky-500/30 text-sky-400 hover:bg-sky-500/10 cursor-pointer"
+                      title="Download GST PDFs for all selected orders"
+                    >
+                      <FileText className="h-3.5 w-3.5" /> Download PDFs
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setSelectedBuildOrderIds([])}
+                      className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                    >
+                      Clear Selection
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Orders Table Body */}
@@ -1405,40 +1754,77 @@ const Admin = () => {
                 <Cpu className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
                 <h4 className="font-semibold text-base text-foreground mb-1">No Placed Build PC Orders Found</h4>
                 <p className="text-xs sm:text-sm text-muted-foreground max-w-md mx-auto">
-                  {buildOrdersSearch || buildOrdersStatus !== "all"
-                    ? "No build orders match your current search or status filter. Try resetting filters."
-                    : "When customers select their parts and place an order on the Build PC page (/build-pc), their configured specifications will show up here with one-click Print and GST Tax Invoice PDF download."}
+                  {buildOrdersSearch || buildOrdersStatus !== "all" || buildOrdersTypeFilter !== "all"
+                    ? "No build orders match your current filters. Try resetting search or type filter."
+                    : "When customers select their parts and place an order, or when you create a bulk order, it will appear here with one-click Print and GST Tax Invoice PDF download."}
                 </p>
-                {(buildOrdersSearch || buildOrdersStatus !== "all") && (
+                <div className="mt-4 flex items-center justify-center gap-2">
+                  {(buildOrdersSearch || buildOrdersStatus !== "all" || buildOrdersTypeFilter !== "all") && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setBuildOrdersSearch("");
+                        setBuildOrdersStatus("all");
+                        setBuildOrdersTypeFilter("all");
+                      }}
+                      className="text-xs"
+                    >
+                      Clear Filters
+                    </Button>
+                  )}
                   <Button
                     size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setBuildOrdersSearch("");
-                      setBuildOrdersStatus("all");
-                    }}
-                    className="mt-4 text-xs"
+                    onClick={() => setShowBulkOrderModal(true)}
+                    className="text-xs bg-purple-600 hover:bg-purple-700 text-white gap-1"
                   >
-                    Clear Filters
+                    <Boxes className="h-3.5 w-3.5" /> Place First Bulk Order
                   </Button>
-                )}
+                </div>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-muted/40 border-b border-border text-muted-foreground uppercase text-[10px] tracking-wider font-semibold">
+                      <th className="py-3 px-3 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          checked={
+                            filteredBuildOrders.length > 0 &&
+                            filteredBuildOrders.every((o) =>
+                              selectedBuildOrderIds.includes(o._id || o.orderId || "")
+                            )
+                          }
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              const allIds = filteredBuildOrders
+                                .map((o) => o._id || o.orderId || "")
+                                .filter(Boolean);
+                              setSelectedBuildOrderIds(allIds);
+                            } else {
+                              setSelectedBuildOrderIds([]);
+                            }
+                          }}
+                          className="rounded border-border cursor-pointer accent-sky-500"
+                          title="Select all orders"
+                        />
+                      </th>
                       <th className="py-3 px-4">Order ID & Date</th>
-                      <th className="py-3 px-4">Customer Details</th>
+                      <th className="py-3 px-4">Customer / Institutional Details</th>
                       <th className="py-3 px-4 min-w-[280px]">Configured Build Components</th>
-                      <th className="py-3 px-4">Total Amount</th>
+                      <th className="py-3 px-4">Amount & Quantity</th>
                       <th className="py-3 px-4">Order Status</th>
                       <th className="py-3 px-4 text-right min-w-[200px]">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
                     {filteredBuildOrders.map((order) => {
+                      const orderIdKey = order._id || order.orderId || "GZ-BUILD";
                       const orderIdDisplay = order.orderId || order._id || "GZ-BUILD";
+                      const isSelected = selectedBuildOrderIds.includes(orderIdKey);
+                      const isBulk = Boolean(order.isBulkOrder) || (Number(order.bulkQuantity) > 1);
+                      const bulkQty = order.bulkQuantity || 1;
                       const dateDisplay = order.createdAt
                         ? new Date(order.createdAt).toLocaleDateString("en-IN", {
                             day: "numeric",
@@ -1449,6 +1835,8 @@ const Admin = () => {
                           })
                         : "Recent";
                       const customerName = order.customer?.name || order.shippingInfo?.name || "Customer";
+                      const customerCompany = order.customer?.company || "";
+                      const customerGstin = order.customer?.gstin || "";
                       const customerPhone = order.customer?.phone || order.shippingInfo?.phone || "";
                       const customerEmail = order.customer?.email || "";
                       const customerCity = order.shippingAddress?.city || order.shippingInfo?.city || "";
@@ -1462,7 +1850,28 @@ const Admin = () => {
                         order.items?.[0];
 
                       return (
-                        <tr key={order._id || order.orderId} className="hover:bg-muted/20 transition-colors">
+                        <tr
+                          key={orderIdKey}
+                          className={`hover:bg-muted/20 transition-colors ${
+                            isSelected ? "bg-sky-500/5" : ""
+                          }`}
+                        >
+                          {/* Checkbox */}
+                          <td className="py-3.5 px-3 align-top text-center">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedBuildOrderIds((prev) => [...prev, orderIdKey]);
+                                } else {
+                                  setSelectedBuildOrderIds((prev) => prev.filter((id) => id !== orderIdKey));
+                                }
+                              }}
+                              className="rounded border-border cursor-pointer accent-sky-500"
+                            />
+                          </td>
+
                           {/* Order ID & Date */}
                           <td className="py-3.5 px-4 align-top">
                             <span className="font-mono font-bold text-sky-400 block text-xs">
@@ -1471,14 +1880,32 @@ const Admin = () => {
                             <span className="text-[11px] text-muted-foreground block mt-0.5">
                               {dateDisplay}
                             </span>
-                            <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground font-medium">
-                              {order.paymentMethod || "COD"}
-                            </span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground font-medium">
+                                {order.paymentMethod || "COD"}
+                              </span>
+                              {isBulk && (
+                                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                                  <Boxes className="h-2.5 w-2.5" /> Bulk ({bulkQty})
+                                </span>
+                              )}
+                            </div>
                           </td>
 
                           {/* Customer */}
                           <td className="py-3.5 px-4 align-top">
                             <div className="font-semibold text-foreground text-xs">{customerName}</div>
+                            {customerCompany && (
+                              <div className="text-[11px] font-medium text-sky-400 flex items-center gap-1 mt-0.5">
+                                <Building2 className="h-3 w-3 shrink-0" />
+                                <span className="truncate max-w-[170px]">{customerCompany}</span>
+                              </div>
+                            )}
+                            {customerGstin && (
+                              <div className="text-[10px] font-mono text-muted-foreground mt-0.5">
+                                GSTIN: <span className="text-foreground font-semibold">{customerGstin}</span>
+                              </div>
+                            )}
                             {customerPhone && (
                               <a
                                 href={`tel:${customerPhone}`}
@@ -1534,20 +1961,26 @@ const Admin = () => {
                                   {buildItem?.name || "Custom PC Build"}
                                 </span>
                                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                                  Qty: {buildItem?.quantity || 1} • Unit: ₹{(buildItem?.price || 0).toLocaleString()}
+                                  Qty: {buildItem?.quantity || bulkQty} • Unit: ₹{(buildItem?.price || 0).toLocaleString()}
                                 </p>
                               </div>
                             )}
                           </td>
 
-                          {/* Total Amount */}
+                          {/* Total Amount & Quantity */}
                           <td className="py-3.5 px-4 align-top">
                             <span className="font-display font-bold text-sm text-emerald-400 block">
                               ₹{grandTotal.toLocaleString()}
                             </span>
-                            <span className="text-[10px] text-muted-foreground font-medium block mt-0.5">
-                              Incl. 18% GST
-                            </span>
+                            {isBulk && bulkQty > 1 ? (
+                              <span className="text-[10px] text-muted-foreground block mt-0.5">
+                                ₹{Math.round(grandTotal / bulkQty).toLocaleString()} × {bulkQty} Units
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground font-medium block mt-0.5">
+                                1 Unit • Incl. 18% GST
+                              </span>
+                            )}
                           </td>
 
                           {/* Order Status */}
@@ -1615,6 +2048,363 @@ const Admin = () => {
               </div>
             )}
           </div>
+
+          {/* MODAL / PANEL: PLACE BULK CUSTOM PC ORDER */}
+          {showBulkOrderModal && (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+              <div className="bg-card border border-border rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden my-auto animate-fade-in-up">
+                {/* Modal Header */}
+                <div className="p-5 border-b border-border flex items-center justify-between bg-gradient-to-r from-purple-900/30 via-background to-sky-900/30">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-400">
+                      <Boxes className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-lg text-foreground flex items-center gap-2">
+                        <span>Place Bulk Custom PC Order</span>
+                        <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                          Institutional / Enterprise
+                        </span>
+                      </h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Configure multi-unit custom PC builds for labs, gaming cafes, or corporate offices with live pricing, B2B GST billing, and instant invoice generation.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowBulkOrderModal(false)}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handlePlaceBulkBuildOrder} className="p-5 space-y-6 max-h-[80vh] overflow-y-auto text-xs">
+                  {/* Step 1: 8-Part Hardware Selection */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-bold text-sm text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Cpu className="h-4 w-4" />
+                        <span>1. Configure Custom Build Components</span>
+                      </h4>
+                      <span className="text-[11px] text-muted-foreground font-medium">
+                        Unit System Price:{" "}
+                        <strong className="text-emerald-400 font-mono text-sm">
+                          ₹{Object.values(bulkSelections)
+                            .reduce((sum, item) => sum + (Number(item?.price) || 0), 0)
+                            .toLocaleString()}
+                        </strong>
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      {[
+                        { key: "processor", label: "Processor (CPU)" },
+                        { key: "motherboard", label: "Motherboard" },
+                        { key: "ram", label: "Memory (RAM)" },
+                        { key: "storage", label: "Storage (SSD/HDD)" },
+                        { key: "gpu", label: "Graphics Card (GPU)" },
+                        { key: "psu", label: "Power Supply (PSU)" },
+                        { key: "cooling", label: "CPU Cooler" },
+                        { key: "case", label: "Cabinet / Case" },
+                      ].map(({ key, label }) => {
+                        const parts = componentsGrouped[key] || [];
+                        const currentSelection = (bulkSelections as any)[key];
+
+                        return (
+                          <div key={key} className="space-y-1 bg-muted/30 p-2.5 rounded-xl border border-border/60">
+                            <Label className="text-[11px] font-semibold text-muted-foreground uppercase flex items-center justify-between">
+                              <span>{label}</span>
+                              {currentSelection && (
+                                <span className="font-mono text-emerald-400 font-bold text-[10px]">
+                                  ₹{Number(currentSelection.price || 0).toLocaleString()}
+                                </span>
+                              )}
+                            </Label>
+                            <select
+                              value={currentSelection?.id || ""}
+                              onChange={(e) => {
+                                const selectedId = e.target.value;
+                                if (!selectedId) {
+                                  setBulkSelections((prev) => ({ ...prev, [key]: null }));
+                                } else {
+                                  const found = parts.find((p) => String(p.id) === selectedId);
+                                  setBulkSelections((prev) => ({ ...prev, [key]: found || null }));
+                                }
+                              }}
+                              className="w-full px-2.5 py-1.5 rounded-lg bg-background text-foreground text-xs border border-border focus:outline-none focus:ring-1 focus:ring-sky-500 font-medium truncate"
+                            >
+                              <option value="">-- Choose {label} --</option>
+                              {parts.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} (₹{p.price.toLocaleString()})
+                                </option>
+                              ))}
+                            </select>
+                            {currentSelection?.specs && (
+                              <p className="text-[10px] text-muted-foreground truncate" title={currentSelection.specs}>
+                                {currentSelection.specs}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Step 2: Commercials & Quantity */}
+                  <div className="bg-gradient-to-r from-muted/40 via-muted/20 to-muted/40 p-4 rounded-xl border border-border/80 space-y-3">
+                    <h4 className="font-bold text-sm text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Boxes className="h-4 w-4" />
+                      <span>2. Volume, Discount & Grand Total</span>
+                    </h4>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Quantity of Systems *</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="500"
+                          value={bulkBuildQty}
+                          onChange={(e) => setBulkBuildQty(Math.max(1, parseInt(e.target.value) || 1))}
+                          className="h-9 font-semibold"
+                          required
+                        />
+                        <span className="text-[10px] text-muted-foreground block">
+                          Minimum 1 system (e.g. 5, 10, 20 for lab / cafe)
+                        </span>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-xs">Volume Discount (%)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="60"
+                          value={bulkDiscountPercent}
+                          onChange={(e) => setBulkDiscountPercent(Math.max(0, Math.min(60, parseInt(e.target.value) || 0)))}
+                          className="h-9 font-semibold"
+                          placeholder="e.g. 5"
+                        />
+                        <span className="text-[10px] text-muted-foreground block">
+                          Applied across entire order
+                        </span>
+                      </div>
+
+                      {/* Financial Summary Card */}
+                      <div className="bg-background/80 p-3 rounded-lg border border-border/80 flex flex-col justify-between">
+                        <div className="space-y-0.5 text-[11px]">
+                          {(() => {
+                            const unitPrice = Object.values(bulkSelections).reduce(
+                              (sum, item) => sum + (Number(item?.price) || 0),
+                              0
+                            );
+                            const rawSubtotal = unitPrice * bulkBuildQty;
+                            const discountAmt = Math.round((rawSubtotal * bulkDiscountPercent) / 100);
+                            const finalTotal = Math.max(0, rawSubtotal - discountAmt);
+                            const baseTaxable = Math.round((finalTotal / 1.18) * 100) / 100;
+                            const gst18 = Math.round((finalTotal - baseTaxable) * 100) / 100;
+
+                            return (
+                              <>
+                                <div className="flex justify-between text-muted-foreground">
+                                  <span>Subtotal ({bulkBuildQty} Units):</span>
+                                  <span>₹{rawSubtotal.toLocaleString()}</span>
+                                </div>
+                                {discountAmt > 0 && (
+                                  <div className="flex justify-between text-rose-400">
+                                    <span>Discount ({bulkDiscountPercent}%):</span>
+                                    <span>-₹{discountAmt.toLocaleString()}</span>
+                                  </div>
+                                )}
+                                <div className="flex justify-between text-muted-foreground text-[10px]">
+                                  <span>Taxable Value:</span>
+                                  <span>₹{baseTaxable.toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between text-muted-foreground text-[10px]">
+                                  <span>18% GST (CGST+SGST):</span>
+                                  <span>₹{gst18.toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between font-bold text-foreground text-xs pt-1 border-t border-border mt-1">
+                                  <span className="text-sky-400">Grand Total:</span>
+                                  <span className="text-emerald-400 font-mono text-sm">
+                                    ₹{finalTotal.toLocaleString()}
+                                  </span>
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Step 3: Client & Institutional Details */}
+                  <div className="space-y-3">
+                    <h4 className="font-bold text-sm text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Building2 className="h-4 w-4" />
+                      <span>3. Client & Institutional Billing Details</span>
+                    </h4>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Client Contact Name *</Label>
+                        <Input
+                          placeholder="e.g. Rajesh Kumar"
+                          value={bulkCustomer.name}
+                          onChange={(e) => setBulkCustomer((p) => ({ ...p, name: e.target.value }))}
+                          className="h-8"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Company / Institution Name</Label>
+                        <Input
+                          placeholder="e.g. Apex Gaming Lounge / SRM Tech Lab"
+                          value={bulkCustomer.company}
+                          onChange={(e) => setBulkCustomer((p) => ({ ...p, company: e.target.value }))}
+                          className="h-8"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Client GSTIN (Tax ID)</Label>
+                        <Input
+                          placeholder="e.g. 33AABCT1332L1Z4"
+                          value={bulkCustomer.gstin}
+                          onChange={(e) => setBulkCustomer((p) => ({ ...p, gstin: e.target.value.toUpperCase() }))}
+                          className="h-8 font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Contact Phone *</Label>
+                        <Input
+                          placeholder="e.g. 9876543210"
+                          value={bulkCustomer.phone}
+                          onChange={(e) => setBulkCustomer((p) => ({ ...p, phone: e.target.value }))}
+                          className="h-8"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Contact Email</Label>
+                        <Input
+                          type="email"
+                          placeholder="e.g. accounts@institution.edu"
+                          value={bulkCustomer.email}
+                          onChange={(e) => setBulkCustomer((p) => ({ ...p, email: e.target.value }))}
+                          className="h-8"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Payment Method</Label>
+                        <select
+                          value={bulkCustomer.paymentMethod}
+                          onChange={(e) => setBulkCustomer((p) => ({ ...p, paymentMethod: e.target.value }))}
+                          className="w-full h-8 px-2.5 rounded-lg bg-background text-foreground text-xs border border-border focus:outline-none"
+                        >
+                          <option value="Bank Transfer (NEFT/RTGS)">Bank Transfer (NEFT/RTGS)</option>
+                          <option value="Purchase Order (Net 30)">Purchase Order (Net 30)</option>
+                          <option value="Cheque / DD">Cheque / Demand Draft</option>
+                          <option value="UPI / Online">UPI / Online Gateway</option>
+                          <option value="Cash on Delivery">Cash on Delivery</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Payment Status</Label>
+                        <select
+                          value={bulkCustomer.paymentStatus}
+                          onChange={(e) => setBulkCustomer((p) => ({ ...p, paymentStatus: e.target.value }))}
+                          className="w-full h-8 px-2.5 rounded-lg bg-background text-foreground text-xs border border-border focus:outline-none"
+                        >
+                          <option value="Paid">Paid / Advance Received</option>
+                          <option value="Pending">Payment Pending</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Initial Order Status</Label>
+                        <select
+                          value={bulkCustomer.orderStatus}
+                          onChange={(e) => setBulkCustomer((p) => ({ ...p, orderStatus: e.target.value }))}
+                          className="w-full h-8 px-2.5 rounded-lg bg-background text-foreground text-xs border border-border focus:outline-none"
+                        >
+                          <option value="Confirmed">Confirmed</option>
+                          <option value="Processing">In Assembly (Processing)</option>
+                          <option value="Pending">Pending</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1 sm:col-span-2 lg:col-span-1">
+                        <Label className="text-xs">Delivery City & State</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            placeholder="City"
+                            value={bulkCustomer.city}
+                            onChange={(e) => setBulkCustomer((p) => ({ ...p, city: e.target.value }))}
+                            className="h-8"
+                          />
+                          <Input
+                            placeholder="State"
+                            value={bulkCustomer.state}
+                            onChange={(e) => setBulkCustomer((p) => ({ ...p, state: e.target.value }))}
+                            className="h-8"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label className="text-xs">Street Delivery Address</Label>
+                        <Input
+                          placeholder="e.g. Block B, Tech Park, Velachery Main Road"
+                          value={bulkCustomer.address}
+                          onChange={(e) => setBulkCustomer((p) => ({ ...p, address: e.target.value }))}
+                          className="h-8"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Pincode</Label>
+                        <Input
+                          placeholder="e.g. 600042"
+                          value={bulkCustomer.pincode}
+                          onChange={(e) => setBulkCustomer((p) => ({ ...p, pincode: e.target.value }))}
+                          className="h-8"
+                        />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2 lg:col-span-3">
+                        <Label className="text-xs">Assembly & Benchmarking Instructions (Optional)</Label>
+                        <Input
+                          placeholder="e.g. Install Ubuntu 24.04 LTS, dual-channel RAM check, 24-hr Cinebench stress test before dispatch"
+                          value={bulkAssemblyNotes}
+                          onChange={(e) => setBulkAssemblyNotes(e.target.value)}
+                          className="h-8"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions Bar */}
+                  <div className="flex items-center justify-between pt-4 border-t border-border">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowBulkOrderModal(false)}
+                      className="cursor-pointer text-xs"
+                    >
+                      Cancel
+                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="submit"
+                        disabled={bulkSubmitting}
+                        className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold cursor-pointer text-xs gap-1.5 shadow-md"
+                      >
+                        <Boxes className="h-4 w-4" />
+                        {bulkSubmitting ? "Creating Bulk Order..." : "Confirm & Place Bulk Order"}
+                      </Button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
 
           {/* SECTION B: ADD NEW HARDWARE COMPONENT FORM (COLLAPSIBLE) */}
           {showAddComponent && (
