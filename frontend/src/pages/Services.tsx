@@ -25,6 +25,87 @@ interface Service {
   features: string[];
 }
 
+const DEFAULT_SERVICES: Service[] = [
+  {
+    id: "srv-pc-build",
+    name: "Custom PC Assembly",
+    price: "From ₹1,999",
+    icon: "Wrench",
+    description: "Professional assembly of your custom PC build with precision cable management and thorough stress testing.",
+    features: [
+      "Expert component assembly",
+      "Clean cable routing & management",
+      "48-hour thermal & stress test",
+      "1-year assembly warranty",
+    ],
+  },
+  {
+    id: "srv-cctv",
+    name: "CCTV Installation",
+    price: "From ₹3,999",
+    icon: "Camera",
+    description: "Complete security surveillance setup for homes and commercial businesses with remote live monitoring capabilities.",
+    features: [
+      "On-site security survey",
+      "Full HD & Night Vision cameras",
+      "Mobile remote access configuration",
+      "24/7 continuous recording setup",
+    ],
+  },
+  {
+    id: "srv-network",
+    name: "Network Setup",
+    price: "From ₹2,499",
+    icon: "Wifi",
+    description: "Professional network infrastructure and high-speed wireless setup tailored for homes, studios, and modern offices.",
+    features: [
+      "Custom network topology design",
+      "Router & switch configuration",
+      "Enterprise security protocols",
+      "Bandwidth & latency optimization",
+    ],
+  },
+  {
+    id: "srv-laptop",
+    name: "Laptop Repair",
+    price: "From ₹999",
+    icon: "Laptop",
+    description: "Certified hardware and chip-level laptop diagnosis and repair for all leading global brands and models.",
+    features: [
+      "Comprehensive free diagnosis",
+      "Original screen replacement",
+      "Battery & charging port fix",
+      "Safe data backup & transfer",
+    ],
+  },
+  {
+    id: "srv-recovery",
+    name: "Data Recovery",
+    price: "From ₹1,499",
+    icon: "Database",
+    description: "Advanced data recovery solutions from damaged hard drives, solid-state drives, corrupted storage, and flash media.",
+    features: [
+      "Complimentary storage evaluation",
+      "Clean-room recovery procedures",
+      "All file systems & media types",
+      "100% confidential data handling",
+    ],
+  },
+  {
+    id: "srv-printer",
+    name: "Printer Repair & Service",
+    price: "From ₹799",
+    icon: "Printer",
+    description: "Comprehensive printer diagnosis, cartridge refill, head cleaning, and hardware repair for laser and inkjet printers.",
+    features: [
+      "LaserJet & Inkjet diagnosis",
+      "Toner & cartridge refills",
+      "Paper feed & roller mechanism fix",
+      "Network printer configuration",
+    ],
+  },
+];
+
 const iconMap: Record<string, React.FC<{ className?: string }>> = {
   Wrench, Camera, Wifi, Laptop, Database, Printer,
 };
@@ -62,14 +143,14 @@ const Services = () => {
         const res = await fetch("/api/services");
         if (!res.ok) throw new Error("Failed to fetch services");
         const data = await res.json();
-        if (Array.isArray(data)) {
+        if (Array.isArray(data) && data.length > 0) {
           setServices(data);
         } else {
-          setServices([]);
+          setServices(DEFAULT_SERVICES);
         }
       } catch (err) {
-        console.warn("Services: Backend service offline", err);
-        setServices([]);
+        console.warn("Services: Backend service offline, using defaults", err);
+        setServices(DEFAULT_SERVICES);
       } finally {
         setLoading(false);
       }
@@ -185,34 +266,66 @@ const Services = () => {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-7 max-w-6xl mx-auto items-stretch">
             {services.map((s, i) => {
               const Icon = iconMap[s.icon] || Wrench;
+              const features = Array.isArray(s.features) ? s.features : [];
+
               return (
                 <motion.div
-                  key={s.id}
+                  key={s.id || s.name}
                   {...fadeUp}
-                  transition={{ delay: i * 0.1 }}
-                  className="bg-card rounded-xl border border-border p-8 card-hover flex flex-col"
+                  transition={{ delay: i * 0.08 }}
+                  className="bg-card rounded-2xl border border-border p-6 sm:p-7 card-hover flex flex-col h-full justify-between shadow-lg shadow-black/20 hover:border-primary/50 transition-all duration-300 relative group overflow-hidden"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center mb-5">
-                    <Icon className="h-6 w-6 text-primary-foreground" />
+                  {/* Top Subtle Gradient Accent */}
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-primary/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+
+                  {/* Main Content Area */}
+                  <div className="flex flex-col flex-1">
+                    {/* SECTION A: Service Header */}
+                    <div className="mb-4">
+                      <div className="w-14 h-14 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center text-primary shadow-inner mb-4 group-hover:scale-105 group-hover:bg-primary/25 transition-all duration-300">
+                        <Icon className="h-7 w-7 text-primary stroke-[2.2]" />
+                      </div>
+                      <h3 className="font-display text-xl sm:text-2xl font-bold text-foreground tracking-tight group-hover:text-primary transition-colors">
+                        {s.name}
+                      </h3>
+                    </div>
+
+                    {/* SECTION B: Service Description */}
+                    <div className="mb-6">
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        {s.description}
+                      </p>
+                    </div>
+
+                    {/* SECTION C: Service Features */}
+                    <div className="mb-6 flex-1">
+                      <ul className="space-y-2.5">
+                        {features.map((feature, fIdx) => (
+                          <li key={fIdx} className="flex items-start gap-2.5 text-xs sm:text-sm text-foreground/90 font-medium">
+                            <CheckCircle className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+                            <span className="leading-snug">{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
-                  <h3 className="font-display text-xl font-bold mb-2">{s.name}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed mb-4 flex-1">{s.description}</p>
-                  <ul className="space-y-2 mb-6">
-                    {s.features.map(f => (
-                      <li key={f} className="flex items-center gap-2 text-sm">
-                        <CheckCircle className="h-4 w-4 text-success shrink-0" />
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="flex items-center justify-between pt-4 border-t border-border">
-                    <span className="font-display font-bold">{s.price}</span>
+
+                  {/* SECTION D: Price and Booking */}
+                  <div className="pt-5 border-t border-border flex items-center justify-between gap-3 mt-auto">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Starting From
+                      </span>
+                      <span className="font-display font-extrabold text-lg sm:text-xl text-primary tracking-tight">
+                        {s.price}
+                      </span>
+                    </div>
                     <button
                       onClick={() => handleBookNow(s)}
-                      className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+                      className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-xs sm:text-sm font-bold hover:opacity-90 hover:shadow-lg hover:shadow-primary/25 active:scale-95 transition-all cursor-pointer"
                     >
                       Book Now
                     </button>
