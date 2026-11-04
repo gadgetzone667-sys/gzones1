@@ -198,7 +198,7 @@ const Services = () => {
 
       setConfirmedBooking(data.booking);
       setIsModalOpen(false);
-      toast.success(`Service booking #${data.booking.bookingId} confirmed successfully!`);
+      toast.success("Thanks for booking our service! Our technician will call or contact you shortly.");
 
       // Reset form
       setFormData({
@@ -453,22 +453,22 @@ const Services = () => {
       <Dialog open={!!confirmedBooking} onOpenChange={(open) => !open && setConfirmedBooking(null)}>
         <DialogContent className="sm:max-w-md bg-card border-border">
           <DialogHeader className="text-center sm:text-center pb-2">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto mb-3 shadow-inner">
-              <CheckCircle className="h-8 w-8" />
+            <div className="w-16 h-16 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto mb-3 shadow-inner">
+              <CheckCircle className="h-9 w-9 stroke-[2.2]" />
             </div>
-            <DialogTitle className="text-xl font-bold font-display text-foreground">
-              Service Booking Confirmed!
+            <DialogTitle className="text-xl sm:text-2xl font-bold font-display text-foreground">
+              Thanks for booking our service!
             </DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">
-              Your appointment request has been recorded in our system.
+            <DialogDescription className="text-xs sm:text-sm font-semibold text-emerald-400 mt-1">
+              Our technician will call or contact you shortly.
             </DialogDescription>
           </DialogHeader>
 
           {confirmedBooking && (
             <div className="space-y-3.5 my-2">
-              <div className="bg-muted/40 p-3.5 rounded-xl border border-border space-y-2 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground font-medium">Booking Reference</span>
+              <div className="bg-muted/40 p-4 rounded-xl border border-border space-y-2.5 text-xs">
+                <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                  <span className="text-muted-foreground font-medium">Booking ID</span>
                   <span className="font-mono font-bold text-sky-400 text-sm">#{confirmedBooking.bookingId}</span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -477,17 +477,29 @@ const Services = () => {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground font-medium">Appointment Slot</span>
-                  <span className="font-semibold text-foreground">{confirmedBooking.bookingDate} at {confirmedBooking.preferredTime}</span>
+                  <span className="font-semibold text-foreground">
+                    📅 {confirmedBooking.bookingDate || confirmedBooking.preferredDate} at {confirmedBooking.preferredTime}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground font-medium">Contact Phone</span>
-                  <span className="font-mono text-foreground">{confirmedBooking.phone1}</span>
+                  <span className="font-mono text-foreground font-semibold">
+                    {confirmedBooking.phone1 || confirmedBooking.primaryPhone}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground font-medium">Booking Status</span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 border border-amber-500/30 text-amber-400">
+                    Pending Review
+                  </span>
                 </div>
               </div>
 
-              <p className="text-[11px] text-muted-foreground leading-relaxed text-center">
-                Our service coordinator will review your request and confirm technician dispatch. You can track real-time progress anytime under <strong>My Services</strong>.
-              </p>
+              <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl text-center">
+                <p className="text-xs text-purple-300 font-medium leading-relaxed">
+                  📞 Our assigned service engineer has received your appointment details and will contact you directly to confirm hardware diagnostics & timing.
+                </p>
+              </div>
             </div>
           )}
 
@@ -495,17 +507,10 @@ const Services = () => {
             <Button
               type="button"
               variant="outline"
-              onClick={() => {
-                const b = confirmedBooking;
-                const text = `Hello GadgetZone, I just booked service #${b.bookingId} (${b.serviceName}) scheduled for ${b.bookingDate} at ${b.preferredTime}.`;
-                window.open(`https://wa.me/919345600128?text=${encodeURIComponent(text)}`, "_blank");
-              }}
-              className="w-full sm:w-auto text-xs font-semibold gap-1.5 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+              onClick={() => setConfirmedBooking(null)}
+              className="w-full sm:w-auto text-xs font-semibold"
             >
-              <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
-                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z" />
-              </svg>
-              <span>Chat on WhatsApp</span>
+              Close
             </Button>
             <Button
               type="button"
@@ -513,7 +518,7 @@ const Services = () => {
                 setConfirmedBooking(null);
                 navigate("/my-services");
               }}
-              className="w-full sm:w-auto bg-primary text-primary-foreground font-bold text-xs gap-1.5"
+              className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs gap-1.5 shadow-md"
             >
               <span>Track in My Services</span>
               <ArrowRight className="h-3.5 w-3.5" />

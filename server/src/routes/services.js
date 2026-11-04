@@ -1,4 +1,5 @@
 import express from "express";
+import mongoose from "mongoose";
 import Service from "../models/Service.js";
 import ServiceBooking from "../models/ServiceBooking.js";
 import { requireAdmin, requireAuth, optionalAuth } from "../middleware/auth.js";
@@ -436,6 +437,45 @@ router.patch("/bookings/:id/cancel", optionalAuth, async (req, res) => {
   } catch (err) {
     console.error("Error cancelling service booking:", err);
     res.status(500).json({ message: "Failed to cancel service booking.", error: err.message });
+  }
+});
+
+// POST /api/services/bookings/:id/rate - Rate completed/active service booking
+router.post("/bookings/:id/rate", optionalAuth, async (req, res) => {
+  try {
+    const { rating, reviewComment, comment } = req.body;
+    const numRating = Number(rating);
+    if (!numRating || numRating < 1 || numRating > 5) {
+      return res.status(400).json({ message: "Please provide a valid rating between 1 and 5 stars." });
+    }
+
+    let booking = null;
+    if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+      booking = await ServiceBooking.findById(req.params.id);
+    }
+    if (!booking) {
+      const cleanId = req.params.id.replace(/^#/, "");
+      booking = await ServiceBooking.findOne({ bookingId: cleanId });
+    }
+
+    if (!booking) {
+      return res.status(404).json({ message: "Service booking not found." });
+    }
+
+    booking.rating = numRating;
+    booking.reviewComment = (reviewComment !== undefined ? reviewComment : comment) || "";
+    booking.reviewedAt = new Date();
+
+    await booking.save();
+
+    res.json({
+      success: true,
+      booking,
+      message: "Thank you for rating our service!",
+    });
+  } catch (err) {
+    console.error("Error rating service booking:", err);
+    res.status(500).json({ message: "Failed to submit rating.", error: err.message });
   }
 });
 

@@ -53,6 +53,7 @@ import {
   CalendarCheck,
   Play,
   Check,
+  Star,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -2348,6 +2349,15 @@ const Admin = () => {
                                   {b.bookingPurpose || b.purpose}
                                 </p>
                               )}
+                              {b.rating ? (
+                                <div
+                                  className="flex items-center gap-1 mt-1 text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 w-fit"
+                                  title={b.reviewComment || "Customer Rating"}
+                                >
+                                  <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                                  <span>{b.rating} / 5</span>
+                                </div>
+                              ) : null}
                             </td>
 
                             {/* Preferred Date & Time */}
@@ -4711,6 +4721,42 @@ const Admin = () => {
                 {viewingBookingDetails.adminNotes || viewingBookingDetails.technicianNotes || "No internal admin notes entered yet."}
               </p>
             </div>
+
+            {/* Customer Rating & Feedback */}
+            {viewingBookingDetails.rating ? (
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                    <Star className="h-3.5 w-3.5 fill-amber-400" /> Customer Service Rating
+                  </span>
+                  <span className="text-xs font-black text-amber-400">
+                    {viewingBookingDetails.rating} / 5 Stars
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((starVal) => (
+                    <Star
+                      key={starVal}
+                      className={`h-4 w-4 ${
+                        starVal <= viewingBookingDetails.rating
+                          ? "fill-amber-400 text-amber-400"
+                          : "text-muted-foreground/30"
+                      }`}
+                    />
+                  ))}
+                </div>
+                {viewingBookingDetails.reviewComment && (
+                  <p className="text-xs text-amber-200 italic pt-1">
+                    "{viewingBookingDetails.reviewComment}"
+                  </p>
+                )}
+                {viewingBookingDetails.reviewedAt && (
+                  <span className="text-[10px] text-muted-foreground block">
+                    Reviewed on {new Date(viewingBookingDetails.reviewedAt).toLocaleString("en-IN")}
+                  </span>
+                )}
+              </div>
+            ) : null}
 
             {/* Cancellation reason if cancelled */}
             {viewingBookingDetails.cancellationReason && (

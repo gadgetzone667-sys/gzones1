@@ -126,6 +126,21 @@ const serviceBookingSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    rating: {
+      type: Number,
+      min: 1,
+      max: 5,
+      default: null,
+    },
+    reviewComment: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    reviewedAt: {
+      type: Date,
+      default: null,
+    },
     statusHistory: [
       {
         status: { type: String, required: true },
