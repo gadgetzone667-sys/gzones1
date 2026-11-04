@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Wrench,
@@ -21,6 +22,7 @@ import {
   Phone,
   User as UserIcon,
   MessageSquare,
+  ArrowRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
@@ -78,12 +80,14 @@ const fadeUp = {
 const Services = () => {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+  const navigate = useNavigate();
 
   // Booking Modal State
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmedBooking, setConfirmedBooking] = useState<any>(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -145,56 +149,62 @@ const Services = () => {
 
     setIsSubmitting(true);
 
-    // 1. Format WhatsApp booking message for Seller Mobile (+91 9345600128)
-    const waText = `🛠️ *NEW SERVICE BOOKING REQUEST*\n\n🔧 *Service:* ${selectedService?.name || 'General Tech Service'}\n💰 *Price:* ${selectedService?.price || 'Quote'}\n👤 *Customer Name:* ${formData.name}\n📞 *Primary Phone:* ${formData.phone1}\n📞 *Alt Phone:* ${formData.phone2 || 'None'}\n📍 *Address:* ${formData.address}\n📅 *Preferred Date:* ${formData.date}\n⏰ *Preferred Time:* ${formData.time}\n\n📝 *Details / Issue:* ${formData.purpose}`;
-
-    // 2. Format Email body for Seller Email (gadgetzone667@gmail.com)
-    const emailBody = `New Service Booking Request:\n\nService: ${selectedService?.name || 'General Tech Service'}\nPrice: ${selectedService?.price || 'Quote'}\nCustomer Name: ${formData.name}\nPrimary Phone: ${formData.phone1}\nAlt Phone: ${formData.phone2 || 'None'}\nAddress: ${formData.address}\nPreferred Date: ${formData.date}\nPreferred Time: ${formData.time}\n\nIssue Details:\n${formData.purpose}`;
-
-    const waUrl = `https://wa.me/919345600128?text=${encodeURIComponent(waText)}`;
-    const mailtoUrl = `mailto:gadgetzone667@gmail.com?subject=${encodeURIComponent("Service Booking: " + (selectedService?.name || "Tech Support"))}&body=${encodeURIComponent(emailBody)}`;
-
     try {
-      await fetch("/api/contact", {
+      const res = await fetch("/api/services/book", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
-          name: formData.name,
-          phone: formData.phone1,
-          email: user?.email || "Not logged in",
-          subject: `Service Booking: ${selectedService?.name}`,
-          message: `Date: ${formData.date} | Time: ${formData.time} | Address: ${formData.address} | Notes: ${formData.purpose}`,
+          customerName: formData.name,
+          phone1: formData.phone1,
+          phone2: formData.phone2,
+          address: formData.address,
+          purpose: formData.purpose,
+          bookingDate: formData.date,
+          preferredTime: formData.time,
+          serviceId: selectedService?.id,
+          serviceName: selectedService?.name,
+          servicePrice: selectedService?.price,
+          email: user?.email || "",
         }),
       });
-    } catch (err) {
-      console.warn("Service booking API notice:", err);
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to submit service booking.");
+      }
+
+      // Cache locally for guest tracking
+      try {
+        const raw = localStorage.getItem("GadgetZone_service_bookings");
+        const existing = raw ? JSON.parse(raw) : [];
+        const updated = [data.booking, ...existing.filter((b: any) => b.bookingId !== data.booking.bookingId)];
+        localStorage.setItem("GadgetZone_service_bookings", JSON.stringify(updated));
+      } catch (e) {
+        console.warn("Local storage cache warning:", e);
+      }
+
+      setConfirmedBooking(data.booking);
+      setIsModalOpen(false);
+      toast.success(`Service booking #${data.booking.bookingId} confirmed successfully!`);
+
+      // Reset form
+      setFormData({
+        name: user?.email.split('@')[0] || "",
+        phone1: "",
+        phone2: "",
+        address: "",
+        purpose: "",
+        date: "",
+        time: "",
+      });
+    } catch (err: any) {
+      toast.error(err.message || "Could not place service booking. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // Open WhatsApp to seller mobile
-    window.open(waUrl, "_blank");
-
-    // Open Email to seller email
-    setTimeout(() => {
-      window.location.href = mailtoUrl;
-    }, 500);
-
-    setIsSubmitting(false);
-    setIsModalOpen(false);
-    toast.success(`Booking dispatched to seller mobile (+91 9345600128) & email (gadgetzone667@gmail.com)!`, {
-      description: `Service: ${selectedService?.name} for ${formData.date} at ${formData.time}`,
-      duration: 5000,
-    });
-
-    // Reset form
-    setFormData({
-      name: user?.email.split('@')[0] || "",
-      phone1: "",
-      phone2: "",
-      address: "",
-      purpose: "",
-      date: "",
-      time: "",
-    });
   };
 
   if (loading) {
@@ -426,6 +436,79 @@ const Services = () => {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Booking Confirmation Success Dialog */}
+      <Dialog open={!!confirmedBooking} onOpenChange={(open) => !open && setConfirmedBooking(null)}>
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader className="text-center sm:text-center pb-2">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto mb-3 shadow-inner">
+              <CheckCircle className="h-8 w-8" />
+            </div>
+            <DialogTitle className="text-xl font-bold font-display text-foreground">
+              Service Booking Confirmed!
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Your appointment request has been recorded in our system.
+            </DialogDescription>
+          </DialogHeader>
+
+          {confirmedBooking && (
+            <div className="space-y-3.5 my-2">
+              <div className="bg-muted/40 p-3.5 rounded-xl border border-border space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground font-medium">Booking Reference</span>
+                  <span className="font-mono font-bold text-sky-400 text-sm">#{confirmedBooking.bookingId}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground font-medium">Service</span>
+                  <span className="font-semibold text-foreground">{confirmedBooking.serviceName}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground font-medium">Appointment Slot</span>
+                  <span className="font-semibold text-foreground">{confirmedBooking.bookingDate} at {confirmedBooking.preferredTime}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground font-medium">Contact Phone</span>
+                  <span className="font-mono text-foreground">{confirmedBooking.phone1}</span>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-muted-foreground leading-relaxed text-center">
+                Our service coordinator will review your request and confirm technician dispatch. You can track real-time progress anytime under <strong>My Services</strong>.
+              </p>
+            </div>
+          )}
+
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                const b = confirmedBooking;
+                const text = `Hello GadgetZone, I just booked service #${b.bookingId} (${b.serviceName}) scheduled for ${b.bookingDate} at ${b.preferredTime}.`;
+                window.open(`https://wa.me/919345600128?text=${encodeURIComponent(text)}`, "_blank");
+              }}
+              className="w-full sm:w-auto text-xs font-semibold gap-1.5 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+            >
+              <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z" />
+              </svg>
+              <span>Chat on WhatsApp</span>
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setConfirmedBooking(null);
+                navigate("/my-services");
+              }}
+              className="w-full sm:w-auto bg-primary text-primary-foreground font-bold text-xs gap-1.5"
+            >
+              <span>Track in My Services</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -50,6 +50,7 @@ import {
   HardDrive,
   Headphones,
   CheckCircle,
+  CalendarCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -143,8 +144,20 @@ const Admin = () => {
   const { reviews, fetchReviews, deleteReview } = useReviews();
 
   const [activeTab, setActiveTab] = useState<
-    "products" | "services" | "components" | "orders" | "reviews"
+    "products" | "services" | "service-bookings" | "components" | "orders" | "reviews"
   >("products");
+
+  // Service Bookings State
+  const [serviceBookings, setServiceBookings] = useState<any[]>([]);
+  const [serviceBookingsLoading, setServiceBookingsLoading] = useState(false);
+  const [serviceBookingsFilter, setServiceBookingsFilter] = useState<string>("All");
+  const [serviceBookingsSearch, setServiceBookingsSearch] = useState<string>("");
+  const [editingBookingNotes, setEditingBookingNotes] = useState<{
+    id: string;
+    bookingId: string;
+    technicianNotes: string;
+    assignedTechnician: string;
+  } | null>(null);
 
   // Orders State
   const [orders, setOrders] = useState<Order[]>([]);
@@ -455,7 +468,11 @@ const Admin = () => {
   useEffect(() => {
     if (activeTab === "reviews") fetchReviews();
     if (activeTab === "orders") fetchAllOrders();
-    if (activeTab === "services") fetchAdminServices();
+    if (activeTab === "services") {
+      fetchAdminServices();
+      fetchAdminServiceBookings();
+    }
+    if (activeTab === "service-bookings") fetchAdminServiceBookings();
     if (activeTab === "components") {
       fetchAdminComponents();
       fetchAllOrders();
@@ -479,6 +496,178 @@ const Admin = () => {
       setServicesLoading(false);
     }
   };
+
+  const fetchAdminServiceBookings = async () => {
+    if (!token) return;
+    setServiceBookingsLoading(true);
+    try {
+      const res = await fetch("/api/services/bookings", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to load service bookings");
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setServiceBookings(data);
+      }
+    } catch (err: any) {
+      console.warn("Service bookings load error:", err);
+      toast.error(err.message || "Failed to load service bookings.");
+    } finally {
+      setServiceBookingsLoading(false);
+    }
+  };
+
+  const handleUpdateBookingStatus = async (
+    id: string,
+    newStatus: string,
+    notes?: string,
+    technician?: string
+  ) => {
+    try {
+      const res = await fetch(`/api/services/bookings/${id}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          status: newStatus,
+          ...(notes !== undefined ? { technicianNotes: notes } : {}),
+          ...(technician ? { assignedTechnician: technician } : {}),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to update status");
+      toast.success(data.message || "Status updated.");
+      setServiceBookings((prev) =>
+        prev.map((b) => (b._id === id ? { ...b, ...data.booking } : b))
+      );
+    } catch (err: any) {
+      toast.error(err.message || "Error updating booking status.");
+    }
+  };
+
+  const handleSaveBookingNotes = async () => {
+    if (!editingBookingNotes) return;
+    try {
+      const res = await fetch(`/api/services/bookings/${editingBookingNotes.id}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          technicianNotes: editingBookingNotes.technicianNotes,
+          assignedTechnician: editingBookingNotes.assignedTechnician,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to save technician remarks");
+      toast.success("Technician remarks updated successfully!");
+      setServiceBookings((prev) =>
+        prev.map((b) => (b._id === editingBookingNotes.id ? { ...b, ...data.booking } : b))
+      );
+      setEditingBookingNotes(null);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save remarks.");
+    }
+  };
+
+  const handleDeleteBooking = async (id: string, bookingId: string) => {
+    if (!window.confirm(`Are you sure you want to delete service booking #${bookingId}?`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/services/bookings/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to delete booking");
+      toast.success(data.message || "Booking deleted.");
+      setServiceBookings((prev) => prev.filter((b) => b._id !== id));
+    } catch (err: any) {
+      toast.error(err.message || "Error deleting booking.");
+    }
+  };
+
+  const printServiceJobCard = (b: any) => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Service Job Sheet - ${b.bookingId}</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 32px; color: #0f172a; }
+          .hdr { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #8b5cf6; padding-bottom: 12px; margin-bottom: 20px; }
+          .hdr h1 { margin: 0; font-size: 20px; color: #4338ca; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+          .box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; font-size: 12px; }
+          .box strong { display: block; color: #64748b; font-size: 10px; text-transform: uppercase; margin-bottom: 4px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12px; }
+          th, td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; }
+          th { background: #f1f5f9; width: 30%; }
+          .sig { margin-top: 50px; display: flex; justify-content: space-between; font-size: 12px; }
+          .sig div { border-top: 1px solid #94a3b8; width: 200px; text-align: center; padding-top: 6px; }
+        </style>
+      </head>
+      <body>
+        <div class="hdr">
+          <div>
+            <h1>GADGET ZONE SERVICE JOB SHEET</h1>
+            <div style="font-size: 11px; color: #64748b;">Enterprise Hardware Services & Repairs • support@gzones.in</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 16px; font-weight: 800; color: #7c3aed;">#${b.bookingId}</div>
+            <div style="font-size: 11px; color: #64748b;">Status: <strong>${b.status}</strong></div>
+          </div>
+        </div>
+        <div class="grid">
+          <div class="box">
+            <strong>Customer Information</strong>
+            <div style="font-size: 13px; font-weight: 700;">${b.customerName}</div>
+            <div>Phone: ${b.phone1} ${b.phone2 ? " / " + b.phone2 : ""}</div>
+            ${b.userEmail ? `<div>Email: ${b.userEmail}</div>` : ""}
+            <div>Location: ${b.address}</div>
+          </div>
+          <div class="box">
+            <strong>Service & Appointment</strong>
+            <div style="font-size: 13px; font-weight: 700;">${b.serviceName}</div>
+            <div>Date: ${b.bookingDate} | Time: ${b.preferredTime}</div>
+            <div>Fee / Stated Price: ${b.servicePrice || "Quote on inspection"}</div>
+            <div>Assigned Tech: ${b.assignedTechnician || "GadgetZone Service Team"}</div>
+          </div>
+        </div>
+        <div class="box" style="margin-bottom: 16px;">
+          <strong>Reported Problem / Service Scope</strong>
+          <div style="font-size: 12px; white-space: pre-wrap;">${b.purpose}</div>
+        </div>
+        ${b.technicianNotes ? `
+        <div class="box" style="margin-bottom: 16px; border-left: 4px solid #8b5cf6;">
+          <strong>Technician Remarks / Action Log</strong>
+          <div>${b.technicianNotes}</div>
+        </div>` : ""}
+        <div class="sig">
+          <div>Customer Signature</div>
+          <div>Authorized Service Engineer</div>
+        </div>
+      </body>
+      </html>
+    `);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 400);
+  };
+
+  const openCustomerWhatsApp = (b: any) => {
+    const cleanPhone = (b.phone1 || "").replace(/\D/g, "");
+    const phoneWithCountry = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+    const text = `Hello ${b.customerName}, this is regarding your GadgetZone service booking *#${b.bookingId}* for *${b.serviceName}*. Current status: *${b.status}*. Scheduled on ${b.bookingDate} (${b.preferredTime}).`;
+    window.open(`https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(text)}`, "_blank");
+  };
+
 
   const fetchAdminComponents = async () => {
     setComponentsLoading(true);
@@ -1154,6 +1343,12 @@ const Admin = () => {
         {[
           { id: "products", label: "Products" },
           { id: "services", label: "Services", icon: Wrench },
+          {
+            id: "service-bookings",
+            label: "Service Bookings",
+            icon: CalendarCheck,
+            badge: serviceBookings.filter((b) => b.status === "Pending").length,
+          },
           { id: "components", label: "PC Builder Components", icon: Cpu },
           { id: "orders", label: "Orders" },
           { id: "reviews", label: "Reviews" },
@@ -1170,7 +1365,12 @@ const Admin = () => {
               }`}
             >
               {Icon && <Icon className="h-4 w-4" />}
-              {tab.label}
+              <span>{tab.label}</span>
+              {Boolean(tab.badge && tab.badge > 0) && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                  {tab.badge}
+                </span>
+              )}
             </button>
           );
         })}
@@ -1796,6 +1996,297 @@ const Admin = () => {
           )}
         </div>
       )}
+
+            {/* TAB: SERVICE BOOKINGS MANAGEMENT */}
+      {activeTab === "service-bookings" && (
+        <div className="space-y-6 animate-fade-in-up">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-border">
+            <div>
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <CalendarCheck className="h-6 w-6 text-purple-400" />
+                <span>Customer Service Bookings</span>
+              </h2>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                Review on-site & carry-in service appointments, assign service engineers, and update live progress shown to customers.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchAdminServiceBookings}
+                className="gap-1.5 text-xs font-semibold cursor-pointer"
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> Refresh
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setActiveTab("services")}
+                className="gap-1.5 bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold border border-border cursor-pointer"
+              >
+                <Wrench className="h-3.5 w-3.5" /> Manage Services Catalog
+              </Button>
+            </div>
+          </div>
+
+          {/* Metric Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            <div className="bg-card p-4 rounded-xl border border-border space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase">Total Bookings</span>
+              <p className="text-2xl font-black text-foreground">{serviceBookings.length}</p>
+            </div>
+            <div className="bg-card p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-1">
+              <span className="text-[11px] font-semibold text-amber-400 uppercase">Pending Review</span>
+              <p className="text-2xl font-black text-amber-400">
+                {serviceBookings.filter((b) => b.status === "Pending").length}
+              </p>
+            </div>
+            <div className="bg-card p-4 rounded-xl border border-purple-500/30 bg-purple-500/5 space-y-1">
+              <span className="text-[11px] font-semibold text-purple-400 uppercase">In Progress</span>
+              <p className="text-2xl font-black text-purple-400">
+                {serviceBookings.filter((b) => b.status === "In Progress" || b.status === "Confirmed").length}
+              </p>
+            </div>
+            <div className="bg-card p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 space-y-1">
+              <span className="text-[11px] font-semibold text-emerald-400 uppercase">Completed</span>
+              <p className="text-2xl font-black text-emerald-400">
+                {serviceBookings.filter((b) => b.status === "Completed").length}
+              </p>
+            </div>
+          </div>
+
+          {/* Search & Filters */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by ID (#GZ-SRV-...), customer, phone, or service..."
+                value={serviceBookingsSearch}
+                onChange={(e) => setServiceBookingsSearch(e.target.value)}
+                className="pl-9 h-9 text-xs"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+              {["All", "Pending", "Confirmed", "In Progress", "Completed", "Cancelled"].map((st) => (
+                <button
+                  key={st}
+                  onClick={() => setServiceBookingsFilter(st)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors border ${
+                    serviceBookingsFilter === st
+                      ? "bg-purple-600 text-white border-purple-500 shadow-sm"
+                      : "bg-card text-muted-foreground border-border hover:text-foreground"
+                  }`}
+                >
+                  {st}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Bookings Table */}
+          {serviceBookingsLoading ? (
+            <div className="py-20 text-center text-muted-foreground">
+              <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2 text-purple-400" />
+              <p className="text-xs">Loading customer service bookings...</p>
+            </div>
+          ) : (() => {
+            const filtered = serviceBookings.filter((b) => {
+              if (serviceBookingsFilter !== "All" && b.status !== serviceBookingsFilter) return false;
+              if (serviceBookingsSearch.trim()) {
+                const q = serviceBookingsSearch.toLowerCase();
+                const matchId = (b.bookingId || "").toLowerCase().includes(q);
+                const matchName = (b.customerName || "").toLowerCase().includes(q);
+                const matchPhone = (b.phone1 || "").toLowerCase().includes(q);
+                const matchService = (b.serviceName || "").toLowerCase().includes(q);
+                if (!matchId && !matchName && !matchPhone && !matchService) return false;
+              }
+              return true;
+            });
+
+            if (filtered.length === 0) {
+              return (
+                <div className="py-16 text-center bg-card rounded-2xl border border-dashed border-border p-8">
+                  <CalendarCheck className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-40" />
+                  <h4 className="text-base font-bold mb-1">No Service Bookings Found</h4>
+                  <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                    {serviceBookingsSearch || serviceBookingsFilter !== "All"
+                      ? "No bookings match your current search or status filter."
+                      : "When customers book repairs or installations on the website, they will appear here with instant workflow controls."}
+                  </p>
+                </div>
+              );
+            }
+
+            return (
+              <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/40 text-muted-foreground font-semibold">
+                        <th className="py-3 px-4">Booking Ref</th>
+                        <th className="py-3 px-4">Customer</th>
+                        <th className="py-3 px-4">Service & Slot</th>
+                        <th className="py-3 px-4">Reported Problem</th>
+                        <th className="py-3 px-4">Status</th>
+                        <th className="py-3 px-4">Tech Remarks</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {filtered.map((b) => (
+                        <tr key={b._id} className="hover:bg-muted/20 transition-colors">
+                          {/* Ref */}
+                          <td className="py-3.5 px-4 align-top">
+                            <span className="font-mono font-bold text-sky-400 block text-xs">
+                              #{b.bookingId}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground block mt-0.5">
+                              {b.createdAt ? new Date(b.createdAt).toLocaleDateString() : "Recent"}
+                            </span>
+                          </td>
+
+                          {/* Customer */}
+                          <td className="py-3.5 px-4 align-top max-w-[180px]">
+                            <span className="font-bold text-foreground block truncate">
+                              {b.customerName}
+                            </span>
+                            <a
+                              href={`tel:${b.phone1}`}
+                              className="text-emerald-400 hover:underline text-[11px] font-mono block mt-0.5"
+                            >
+                              {b.phone1} {b.phone2 ? `• ${b.phone2}` : ""}
+                            </a>
+                            <p className="text-[10px] text-muted-foreground truncate mt-0.5" title={b.address}>
+                              {b.address}
+                            </p>
+                          </td>
+
+                          {/* Service */}
+                          <td className="py-3.5 px-4 align-top max-w-[200px]">
+                            <span className="font-semibold text-foreground block">
+                              {b.serviceName}
+                            </span>
+                            <span className="text-purple-400 font-bold text-[11px] block">
+                              {b.servicePrice || "Quote"}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground block mt-0.5">
+                              📅 {b.bookingDate} ({b.preferredTime})
+                            </span>
+                          </td>
+
+                          {/* Problem */}
+                          <td className="py-3.5 px-4 align-top max-w-[220px]">
+                            <p className="text-xs text-foreground/90 line-clamp-2" title={b.purpose}>
+                              {b.purpose}
+                            </p>
+                          </td>
+
+                          {/* Status */}
+                          <td className="py-3.5 px-4 align-top">
+                            <select
+                              value={b.status}
+                              onChange={(e) => handleUpdateBookingStatus(b._id, e.target.value)}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-bold border focus:outline-none ${
+                                b.status === "Pending"
+                                  ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                                  : b.status === "Confirmed"
+                                  ? "bg-sky-500/10 text-sky-400 border-sky-500/30"
+                                  : b.status === "In Progress"
+                                  ? "bg-purple-500/10 text-purple-400 border-purple-500/30"
+                                  : b.status === "Completed"
+                                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                                  : "bg-rose-500/10 text-rose-400 border-rose-500/30"
+                              }`}
+                            >
+                              <option value="Pending" className="bg-slate-900 text-amber-400">Pending</option>
+                              <option value="Confirmed" className="bg-slate-900 text-sky-400">Confirmed</option>
+                              <option value="In Progress" className="bg-slate-900 text-purple-400">In Progress</option>
+                              <option value="Completed" className="bg-slate-900 text-emerald-400">Completed</option>
+                              <option value="Cancelled" className="bg-slate-900 text-rose-400">Cancelled</option>
+                            </select>
+                          </td>
+
+                          {/* Tech Remarks */}
+                          <td className="py-3.5 px-4 align-top max-w-[160px]">
+                            <button
+                              onClick={() =>
+                                setEditingBookingNotes({
+                                  id: b._id,
+                                  bookingId: b.bookingId,
+                                  technicianNotes: b.technicianNotes || "",
+                                  assignedTechnician: b.assignedTechnician || "GadgetZone Service Engineer",
+                                })
+                              }
+                              className="text-left w-full hover:opacity-80 transition-opacity"
+                              title="Click to edit technician notes"
+                            >
+                              {b.technicianNotes ? (
+                                <p className="text-[11px] text-sky-300 font-medium line-clamp-2">
+                                  {b.technicianNotes}
+                                </p>
+                              ) : (
+                                <span className="text-[11px] text-muted-foreground/60 italic underline">
+                                  + Add remarks
+                                </span>
+                              )}
+                              <span className="text-[10px] text-muted-foreground block mt-0.5 truncate">
+                                Tech: {b.assignedTechnician || "Unassigned"}
+                              </span>
+                            </button>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3.5 px-4 align-top text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {/* Print */}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => printServiceJobCard(b)}
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground cursor-pointer"
+                                title="Print Service Job Sheet"
+                              >
+                                <Printer className="h-3.5 w-3.5" />
+                              </Button>
+
+                              {/* WhatsApp */}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => openCustomerWhatsApp(b)}
+                                className="h-7 w-7 p-0 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 cursor-pointer"
+                                title="Message customer on WhatsApp"
+                              >
+                                <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                                  <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z" />
+                                </svg>
+                              </Button>
+
+                              {/* Delete */}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleDeleteBooking(b._id, b.bookingId)}
+                                className="h-7 w-7 p-0 text-destructive/70 hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                                title="Delete booking"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
 
       {/* TAB 3: PC BUILDER COMPONENTS & PLACED BUILD PC ORDERS */}
       {activeTab === "components" && (
@@ -3740,6 +4231,73 @@ const Admin = () => {
           </div>
         </>
       )}
+      {/* MODAL: EDIT TECHNICIAN REMARKS & ASSIGN TECH */}
+      {editingBookingNotes && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4 animate-fade-in-up">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <h3 className="font-bold text-base flex items-center gap-2">
+                <Wrench className="h-4 w-4 text-purple-400" />
+                <span>Technician Remarks (#{editingBookingNotes.bookingId})</span>
+              </h3>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setEditingBookingNotes(null)}
+                className="h-7 w-7 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Assigned Technician / Engineer</Label>
+                <Input
+                  value={editingBookingNotes.assignedTechnician}
+                  onChange={(e) =>
+                    setEditingBookingNotes((p) => p && { ...p, assignedTechnician: e.target.value })
+                  }
+                  placeholder="e.g. Ramesh K. (Hardware Specialist)"
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs">Live Progress Remarks (Customer will see this on My Services)</Label>
+                <Textarea
+                  value={editingBookingNotes.technicianNotes}
+                  onChange={(e) =>
+                    setEditingBookingNotes((p) => p && { ...p, technicianNotes: e.target.value })
+                  }
+                  placeholder="e.g. Initial diagnostic complete. Motherboard power IC replaced. Testing overnight for stability."
+                  rows={4}
+                  className="text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditingBookingNotes(null)}
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSaveBookingNotes}
+                className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs"
+              >
+                Save Remarks
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

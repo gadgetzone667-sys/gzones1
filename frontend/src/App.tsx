@@ -26,6 +26,7 @@ import ProductDetails from "./pages/ProductDetails";
 import Wishlist from "./pages/Wishlist";
 import Checkout from "./pages/Checkout";
 import Orders from "./pages/Orders";
+import MyServices from "./pages/MyServices";
 import ResetPassword from "./pages/ResetPassword";
 import Terms from "./pages/Terms";
 import GlowingNetworkBackground from "./components/GlowingNetworkBackground";
@@ -151,6 +152,7 @@ const App = () => {
                             <Route path="/wishlist" element={<Wishlist />} />
                             <Route path="/product/:id" element={<ProductDetails />} />
                             <Route path="/orders" element={<Orders />} />
+                            <Route path="/my-services" element={<MyServices />} />
                             <Route path="/admin" element={<AdminRouteGuard />} />
                             <Route path="/admin/login" element={<AdminLogin />} />
                             <Route path="/login" element={<Login />} />

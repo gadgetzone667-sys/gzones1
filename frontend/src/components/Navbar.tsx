@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ShoppingCart, Search, Menu, X, Monitor, User, Heart, Package, ShieldCheck } from "lucide-react";
+import { ShoppingCart, Search, Menu, X, Monitor, User, Heart, Package, ShieldCheck, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
@@ -183,6 +183,16 @@ const Navbar = () => {
                           className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-secondary rounded-lg font-medium transition-colors flex items-center gap-2"
                         >
                           <Package className="h-4 w-4" /> My Orders
+                        </Link>
+                        <Link 
+                          to="/my-services" 
+                          onClick={() => {
+                            closeSearch();
+                            setUserMenuOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-secondary rounded-lg font-medium transition-colors flex items-center gap-2"
+                        >
+                          <Wrench className="h-4 w-4 text-purple-400" /> My Services
                         </Link>
                         {user.isAdmin && (
                           <Link
