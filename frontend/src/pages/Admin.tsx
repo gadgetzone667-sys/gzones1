@@ -42,7 +42,6 @@ import {
   Building2,
   Boxes,
   CheckSquare,
-  Sparkles,
   Wifi,
   Laptop,
   Database,
@@ -217,7 +216,7 @@ const Admin = () => {
   const [selectedBuildOrderIds, setSelectedBuildOrderIds] = useState<string[]>([]);
   const [bulkBatchStatus, setBulkBatchStatus] = useState<string>("Confirmed");
   const [bulkStatusUpdating, setBulkStatusUpdating] = useState(false);
-  const [seedingLoading, setSeedingLoading] = useState(false);
+
 
   // Modal for placing bulk custom PC orders
   const [showBulkOrderModal, setShowBulkOrderModal] = useState(false);
@@ -939,26 +938,7 @@ const Admin = () => {
       toast.error("Failed to delete component.");
     }
   };
-  const handleSeedComponents = async () => {
-    setSeedingLoading(true);
-    try {
-      const res = await fetch("/api/components/seed", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to seed hardware catalog");
-      toast.success(data.message || "Standard components seeded across all categories!");
-      await fetchAdminComponents();
-    } catch (err: any) {
-      toast.error(err.message || "Error seeding hardware catalog.");
-    } finally {
-      setSeedingLoading(false);
-    }
-  };
+
 
   const handleBulkBatchStatusUpdate = async () => {
     if (selectedBuildOrderIds.length === 0) {
@@ -1861,17 +1841,7 @@ const Admin = () => {
               >
                 <RefreshCw className="h-3.5 w-3.5" /> Refresh
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={seedingLoading}
-                onClick={handleSeedComponents}
-                className="gap-1.5 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 cursor-pointer text-xs font-semibold"
-                title="Populate standard gaming & workstation hardware components across all 8 categories"
-              >
-                <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-                {seedingLoading ? "Seeding..." : "Seed Hardware Catalog"}
-              </Button>
+
               <Button
                 size="sm"
                 onClick={() => setShowBulkOrderModal(true)}
@@ -2452,9 +2422,14 @@ const Admin = () => {
                                   setBulkSelections((prev) => ({ ...prev, [key]: found || null }));
                                 }
                               }}
-                              className="w-full px-2.5 py-1.5 rounded-lg bg-background text-foreground text-xs border border-border focus:outline-none focus:ring-1 focus:ring-sky-500 font-medium truncate"
+                              disabled={parts.length === 0}
+                              className="w-full px-2.5 py-1.5 rounded-lg bg-background text-foreground text-xs border border-border focus:outline-none focus:ring-1 focus:ring-sky-500 font-medium truncate disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              <option value="">-- Choose {label} --</option>
+                              <option value="">
+                                {parts.length === 0
+                                  ? `-- No ${label} in stock (0 available) --`
+                                  : `-- Choose ${label} (${parts.length} available) --`}
+                              </option>
                               {parts.map((p) => (
                                 <option key={p.id} value={p.id}>
                                   {p.name} (₹{p.price.toLocaleString()})
@@ -2850,8 +2825,13 @@ const Admin = () => {
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {parts.map((c) => (
+                    {parts.length === 0 ? (
+                      <div className="py-4 text-center text-xs text-muted-foreground/60 italic bg-background/30 rounded-xl border border-dashed border-border/60">
+                        No components added to {category} yet. Click "Add New Hardware Component" above to add real products.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {parts.map((c) => (
                         <div
                           key={c.id}
                           className="rounded-xl border border-border/70 bg-background/50 p-3.5 hover:border-primary/40 transition-colors"
@@ -2935,7 +2915,8 @@ const Admin = () => {
                           )}
                         </div>
                       ))}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

@@ -46,87 +46,6 @@ interface Service {
   features: string[];
 }
 
-const DEFAULT_SERVICES: Service[] = [
-  {
-    id: "srv-pc-build",
-    name: "Custom PC Assembly",
-    price: "From ₹1,999",
-    icon: "Wrench",
-    description: "Professional assembly of your custom PC build with precision cable management and thorough stress testing.",
-    features: [
-      "Expert component assembly",
-      "Clean cable routing & management",
-      "48-hour thermal & stress test",
-      "1-year assembly warranty",
-    ],
-  },
-  {
-    id: "srv-cctv",
-    name: "CCTV Installation",
-    price: "From ₹3,999",
-    icon: "Camera",
-    description: "Complete security surveillance setup for homes and commercial businesses with remote live monitoring capabilities.",
-    features: [
-      "On-site security survey",
-      "Full HD & Night Vision cameras",
-      "Mobile remote access configuration",
-      "24/7 continuous recording setup",
-    ],
-  },
-  {
-    id: "srv-network",
-    name: "Network Setup",
-    price: "From ₹2,499",
-    icon: "Wifi",
-    description: "Professional network infrastructure and high-speed wireless setup tailored for homes, studios, and modern offices.",
-    features: [
-      "Custom network topology design",
-      "Router & switch configuration",
-      "Enterprise security protocols",
-      "Bandwidth & latency optimization",
-    ],
-  },
-  {
-    id: "srv-laptop",
-    name: "Laptop Repair",
-    price: "From ₹999",
-    icon: "Laptop",
-    description: "Certified hardware and chip-level laptop diagnosis and repair for all leading global brands and models.",
-    features: [
-      "Comprehensive free diagnosis",
-      "Original screen replacement",
-      "Battery & charging port fix",
-      "Safe data backup & transfer",
-    ],
-  },
-  {
-    id: "srv-recovery",
-    name: "Data Recovery",
-    price: "From ₹1,499",
-    icon: "Database",
-    description: "Advanced data recovery solutions from damaged hard drives, solid-state drives, corrupted storage, and flash media.",
-    features: [
-      "Complimentary storage evaluation",
-      "Clean-room recovery procedures",
-      "All file systems & media types",
-      "100% confidential data handling",
-    ],
-  },
-  {
-    id: "srv-printer",
-    name: "Printer Repair & Service",
-    price: "From ₹799",
-    icon: "Printer",
-    description: "Comprehensive printer diagnosis, cartridge refill, head cleaning, and hardware repair for laser and inkjet printers.",
-    features: [
-      "LaserJet & Inkjet diagnosis",
-      "Toner & cartridge refills",
-      "Paper feed & roller mechanism fix",
-      "Network printer configuration",
-    ],
-  },
-];
-
 const iconMap: Record<string, React.FC<{ className?: string }>> = {
   Wrench,
   Camera,
@@ -183,14 +102,14 @@ const Services = () => {
         const res = await fetch("/api/services");
         if (!res.ok) throw new Error("Failed to fetch services");
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           setServices(data);
         } else {
-          setServices(DEFAULT_SERVICES);
+          setServices([]);
         }
       } catch (err) {
-        console.warn("Services: Backend service offline, using defaults", err);
-        setServices(DEFAULT_SERVICES);
+        console.warn("Services: Backend service offline", err);
+        setServices([]);
       } finally {
         setLoading(false);
       }
@@ -309,34 +228,8 @@ const Services = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-7 max-w-6xl mx-auto items-stretch">
             {services.map((s, i) => {
               const Icon = getServiceIcon(s.icon);
-              let features = Array.isArray(s.features) ? s.features.filter(Boolean) : [];
-              let description = s.description || "";
-
-              // Normalize legacy entries where features were appended to description
-              if (features.length === 0 && description.includes("Expert assembly")) {
-                const parts = description.split("Expert assembly");
-                description = parts[0].trim();
-                features = [
-                  "Expert component assembly",
-                  "Clean cable routing & management",
-                  "48-hour thermal & stress test",
-                  "1-year assembly warranty",
-                ];
-              } else if (features.length === 0 && s.name?.toLowerCase().includes("cctv")) {
-                features = [
-                  "On-site security survey & planning",
-                  "Full HD & Night Vision camera setup",
-                  "Mobile live monitoring configuration",
-                  "24/7 continuous recording storage",
-                ];
-              } else if (features.length === 0 && s.name?.toLowerCase().includes("printer")) {
-                features = [
-                  "LaserJet & Inkjet full diagnosis",
-                  "Cartridge refilling & toner service",
-                  "Paper feed & roller mechanism fix",
-                  "Wi-Fi & network print configuration",
-                ];
-              }
+              const features = Array.isArray(s.features) ? s.features.filter(Boolean) : [];
+              const description = s.description || "";
 
               return (
                 <motion.div
