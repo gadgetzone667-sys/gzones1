@@ -5,6 +5,8 @@ export interface Product {
   price: number;
   originalPrice?: number;
   image: string;
+  images?: string[];
+  features?: string[];
   rating: number;
   reviewCount: number;
   brand: string;
@@ -12,6 +14,7 @@ export interface Product {
   stock: number;
   featured?: boolean;
   specs?: Record<string, string>;
+  warranty?: string;
 }
 
 export interface Service {

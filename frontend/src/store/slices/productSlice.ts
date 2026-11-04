@@ -9,7 +9,13 @@ export function toProduct(doc: Record<string, unknown>): Product {
     category: (doc.category as string) || "",
     price: (doc.price as number) || 0,
     originalPrice: doc.originalPrice as number | undefined,
-    image: (doc.image as string) || "",
+    image: (doc.image as string) || (Array.isArray(doc.images) && doc.images[0]) || "",
+    images: Array.isArray(doc.images) && doc.images.length > 0
+      ? (doc.images as string[]).filter(Boolean)
+      : doc.image
+      ? [doc.image as string]
+      : [],
+    features: Array.isArray(doc.features) ? (doc.features as string[]).filter(Boolean) : [],
     rating: (doc.rating as number) ?? 0,
     reviewCount: (doc.reviewCount as number) ?? 0,
     brand: (doc.brand as string) || "",
@@ -17,6 +23,7 @@ export function toProduct(doc: Record<string, unknown>): Product {
     stock: (doc.stock as number) ?? 0,
     featured: (doc.featured as boolean) ?? false,
     specs: doc.specs as Record<string, string> | undefined,
+    warranty: (doc.warranty as string) || "1 Year Onsite Hardware Service",
   };
 }
 
