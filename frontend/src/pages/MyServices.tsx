@@ -45,6 +45,13 @@ const statusConfig: Record<
   string,
   { label: string; color: string; bg: string; border: string; step: number }
 > = {
+  "Pending Review": {
+    label: "Pending Review",
+    color: "text-amber-400",
+    bg: "bg-amber-500/10",
+    border: "border-amber-500/30",
+    step: 1,
+  },
   Pending: {
     label: "Requested (Under Review)",
     color: "text-amber-400",

@@ -147,6 +147,12 @@ const Services = () => {
       return;
     }
 
+    const cleanPhone = formData.phone1.replace(/\D/g, "");
+    if (cleanPhone.length < 10) {
+      toast.error("Please enter a valid 10-digit primary phone number.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -158,15 +164,19 @@ const Services = () => {
         },
         body: JSON.stringify({
           customerName: formData.name,
+          name: formData.name,
+          primaryPhone: formData.phone1,
           phone1: formData.phone1,
+          alternatePhone: formData.phone2,
           phone2: formData.phone2,
           address: formData.address,
+          bookingPurpose: formData.purpose,
           purpose: formData.purpose,
+          preferredDate: formData.date,
           bookingDate: formData.date,
           preferredTime: formData.time,
           serviceId: selectedService?.id,
           serviceName: selectedService?.name,
-          servicePrice: selectedService?.price,
           email: user?.email || "",
         }),
       });

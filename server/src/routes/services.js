@@ -122,74 +122,134 @@ router.post("/book", optionalAuth, async (req, res) => {
       name,
       customerName,
       phone1,
+      primaryPhone,
       phone,
       phone2,
+      alternatePhone,
       address,
       serviceId,
       serviceName,
-      servicePrice,
       date,
+      preferredDate,
       bookingDate,
       time,
       preferredTime,
       purpose,
+      bookingPurpose,
       email,
     } = req.body;
 
+    // 1. Validate Required Fields
     const finalName = (customerName || name || "").trim();
-    const finalPhone = (phone1 || phone || "").trim();
+    const finalPhone = (primaryPhone || phone1 || phone || "").trim();
+    const finalAltPhone = (alternatePhone || phone2 || "").trim();
     const finalAddress = (address || "").trim();
-    const finalPurpose = (purpose || "").trim();
-    const finalDate = (bookingDate || date || "").trim();
+    const finalPurpose = (bookingPurpose || purpose || "").trim();
+    const finalDate = (preferredDate || bookingDate || date || "").trim();
     const finalTime = (preferredTime || time || "").trim();
-    const finalService = (serviceName || "General Tech Service").trim();
 
-    if (!finalName || !finalPhone || !finalAddress || !finalPurpose || !finalDate || !finalTime) {
-      return res.status(400).json({
-        message: "Please fill in all required fields: name, phone, address, date, time, and service details.",
-      });
+    if (!finalName) {
+      return res.status(400).json({ message: "Full Name is required." });
+    }
+    if (!finalPhone) {
+      return res.status(400).json({ message: "Primary Phone Number is required." });
+    }
+    const cleanDigits = finalPhone.replace(/\D/g, "");
+    if (cleanDigits.length < 10) {
+      return res.status(400).json({ message: "Please provide a valid 10-digit primary phone number." });
+    }
+    if (!finalAddress) {
+      return res.status(400).json({ message: "Service Address is required." });
+    }
+    if (!finalPurpose) {
+      return res.status(400).json({ message: "Booking purpose / issue description is required." });
+    }
+    if (!finalDate) {
+      return res.status(400).json({ message: "Preferred Date is required." });
+    }
+    if (!finalTime) {
+      return res.status(400).json({ message: "Preferred Time slot is required." });
     }
 
-    // Generate unique human-readable booking ID: GZ-SRV-XXXX
-    let bookingId = "";
-    let isUnique = false;
-    let attempts = 0;
-    while (!isUnique && attempts < 10) {
-      attempts++;
-      const rand = Math.floor(1000 + Math.random() * 9000);
-      const candidate = `GZ-SRV-${rand}`;
-      const existing = await ServiceBooking.findOne({ bookingId: candidate });
-      if (!existing) {
-        bookingId = candidate;
-        isUnique = true;
+    // 2. Security: Look up genuine service in MongoDB to prevent browser price tampering
+    let actualServiceName = (serviceName || "General Tech Service").trim();
+    let actualServicePrice = "Quote on Inspection";
+    let genuineServiceId = serviceId || "";
+
+    if (serviceId) {
+      try {
+        const genuineService = await Service.findById(serviceId);
+        if (genuineService) {
+          actualServiceName = genuineService.name;
+          actualServicePrice = genuineService.price;
+          genuineServiceId = genuineService._id.toString();
+        }
+      } catch {
+        // Fallback: search by name
+        const genuineService = await Service.findOne({ name: actualServiceName });
+        if (genuineService) {
+          actualServiceName = genuineService.name;
+          actualServicePrice = genuineService.price;
+          genuineServiceId = genuineService._id.toString();
+        }
+      }
+    } else if (serviceName) {
+      const genuineService = await Service.findOne({ name: serviceName.trim() });
+      if (genuineService) {
+        actualServiceName = genuineService.name;
+        actualServicePrice = genuineService.price;
+        genuineServiceId = genuineService._id.toString();
       }
     }
-    if (!bookingId) {
-      bookingId = `GZ-SRV-${Date.now().toString().slice(-4)}`;
+
+    // 3. Generate Unique Booking ID: #GZ-SRV-0001
+    const totalCount = await ServiceBooking.countDocuments();
+    let seq = totalCount + 1;
+    let candidate = `GZ-SRV-${String(seq).padStart(4, "0")}`;
+
+    while (
+      await ServiceBooking.exists({
+        $or: [{ bookingId: candidate }, { bookingId: `#${candidate}` }],
+      })
+    ) {
+      seq++;
+      candidate = `GZ-SRV-${String(seq).padStart(4, "0")}`;
     }
 
-    const userId = req.user?.id || req.user?._id || null;
+    const bookingId = candidate;
+    const customerId = req.user?.id || req.user?._id || null;
     const userEmail = req.user?.email || email || "";
 
+    // 4. Save Booking to MongoDB Atlas
     const booking = await ServiceBooking.create({
       bookingId,
-      userId,
+      customerId,
+      userId: customerId,
       userEmail,
       customerName: finalName,
+      primaryPhone: finalPhone,
       phone1: finalPhone,
-      phone2: (phone2 || "").trim(),
+      alternatePhone: finalAltPhone,
+      phone2: finalAltPhone,
       address: finalAddress,
-      serviceId: serviceId || "",
-      serviceName: finalService,
-      servicePrice: servicePrice || "Quote on Inspection",
+      serviceId: genuineServiceId,
+      serviceName: actualServiceName,
+      servicePrice: actualServicePrice,
+      bookingPurpose: finalPurpose,
+      purpose: finalPurpose,
+      preferredDate: finalDate,
       bookingDate: finalDate,
       preferredTime: finalTime,
-      purpose: finalPurpose,
-      status: "Pending",
+      bookingStatus: "Pending Review",
+      status: "Pending Review",
+      assignedEngineer: "Unassigned",
+      assignedTechnician: "Unassigned",
+      adminNotes: "",
+      technicianNotes: "",
       statusHistory: [
         {
-          status: "Pending",
-          note: "Service booking request submitted by customer",
+          status: "Pending Review",
+          note: "Service booking submitted directly by customer",
           updatedAt: new Date(),
         },
       ],
@@ -198,7 +258,8 @@ router.post("/book", optionalAuth, async (req, res) => {
     res.status(201).json({
       success: true,
       booking,
-      message: `Service booking ${booking.bookingId} created successfully!`,
+      bookingId: `#${booking.bookingId}`,
+      message: `Service booking #${booking.bookingId} submitted successfully! Our team will review and confirm shortly.`,
     });
   } catch (err) {
     console.error("Service booking creation error:", err);
@@ -214,7 +275,7 @@ router.get("/my-bookings", requireAuth, async (req, res) => {
 
     const query = {
       $or: [
-        ...(userId ? [{ userId }] : []),
+        ...(userId ? [{ userId }, { customerId: userId }] : []),
         ...(userEmail ? [{ userEmail }] : []),
       ],
     };
@@ -227,22 +288,39 @@ router.get("/my-bookings", requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/services/bookings - Admin: Fetch all customer service bookings with optional status filter
+// GET /api/services/bookings - Admin: Fetch all customer service bookings with search & status filters
 router.get("/bookings", requireAdmin, async (req, res) => {
   try {
     const { status, search } = req.query;
     const filter = {};
+
     if (status && status !== "All") {
-      filter.status = status;
+      if (status === "Pending" || status === "Pending Review") {
+        filter.$or = [{ status: { $in: ["Pending Review", "Pending"] } }, { bookingStatus: { $in: ["Pending Review", "Pending"] } }];
+      } else {
+        filter.$or = [{ status }, { bookingStatus: status }];
+      }
     }
+
     if (search && search.trim()) {
       const q = search.trim();
-      filter.$or = [
+      const searchConditions = [
         { bookingId: { $regex: q, $options: "i" } },
         { customerName: { $regex: q, $options: "i" } },
+        { primaryPhone: { $regex: q, $options: "i" } },
         { phone1: { $regex: q, $options: "i" } },
+        { alternatePhone: { $regex: q, $options: "i" } },
         { serviceName: { $regex: q, $options: "i" } },
+        { address: { $regex: q, $options: "i" } },
+        { assignedEngineer: { $regex: q, $options: "i" } },
       ];
+
+      if (filter.$or) {
+        filter.$and = [{ $or: filter.$or }, { $or: searchConditions }];
+        delete filter.$or;
+      } else {
+        filter.$or = searchConditions;
+      }
     }
 
     const bookings = await ServiceBooking.find(filter).sort({ createdAt: -1 });
@@ -253,34 +331,71 @@ router.get("/bookings", requireAdmin, async (req, res) => {
   }
 });
 
-// PATCH /api/services/bookings/:id/status - Admin: Update status and technician remarks
+// GET /api/services/bookings/:id - Admin: Fetch single service booking details
+router.get("/bookings/:id", requireAdmin, async (req, res) => {
+  try {
+    const booking = await ServiceBooking.findById(req.params.id);
+    if (!booking) {
+      return res.status(404).json({ message: "Service booking not found." });
+    }
+    res.json(booking);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch service booking details.", error: err.message });
+  }
+});
+
+// PATCH /api/services/bookings/:id/status - Admin: Update status, assign engineer, and admin notes
 router.patch("/bookings/:id/status", requireAdmin, async (req, res) => {
   try {
-    const { status, technicianNotes, assignedTechnician } = req.body;
+    const { status, bookingStatus, assignedEngineer, assignedTechnician, adminNotes, technicianNotes, cancellationReason } = req.body;
 
     const booking = await ServiceBooking.findById(req.params.id);
     if (!booking) {
       return res.status(404).json({ message: "Service booking not found." });
     }
 
-    if (status && status !== booking.status) {
-      booking.status = status;
+    const newStatus = status || bookingStatus;
+    const newEngineer = assignedEngineer || assignedTechnician;
+    const newNotes = adminNotes !== undefined ? adminNotes : technicianNotes;
+
+    if (newStatus && newStatus !== booking.status && newStatus !== booking.bookingStatus) {
+      booking.status = newStatus;
+      booking.bookingStatus = newStatus;
+
+      let historyNote = `Status changed to ${newStatus}`;
+      if (newStatus === "Cancelled" && cancellationReason) {
+        historyNote += ` (Reason: ${cancellationReason})`;
+      } else if (newNotes) {
+        historyNote += ` - ${newNotes}`;
+      }
+
       booking.statusHistory.push({
-        status,
-        note: technicianNotes || `Status updated to ${status} by admin`,
+        status: newStatus,
+        note: historyNote,
         updatedAt: new Date(),
       });
     }
 
-    if (technicianNotes !== undefined) booking.technicianNotes = technicianNotes;
-    if (assignedTechnician) booking.assignedTechnician = assignedTechnician;
+    if (newEngineer !== undefined) {
+      booking.assignedEngineer = newEngineer;
+      booking.assignedTechnician = newEngineer;
+    }
+
+    if (newNotes !== undefined) {
+      booking.adminNotes = newNotes;
+      booking.technicianNotes = newNotes;
+    }
+
+    if (cancellationReason !== undefined) {
+      booking.cancellationReason = cancellationReason;
+    }
 
     await booking.save();
 
     res.json({
       success: true,
       booking,
-      message: `Booking ${booking.bookingId} updated to ${booking.status}.`,
+      message: `Booking #${booking.bookingId} updated successfully!`,
     });
   } catch (err) {
     console.error("Error updating service booking status:", err);
@@ -291,20 +406,23 @@ router.patch("/bookings/:id/status", requireAdmin, async (req, res) => {
 // PATCH /api/services/bookings/:id/cancel - User or Admin cancel service booking
 router.patch("/bookings/:id/cancel", optionalAuth, async (req, res) => {
   try {
+    const { reason, cancellationReason } = req.body;
     const booking = await ServiceBooking.findById(req.params.id);
     if (!booking) {
       return res.status(404).json({ message: "Service booking not found." });
     }
 
-    // Completed bookings cannot be cancelled
     if (booking.status === "Completed") {
       return res.status(400).json({ message: "Completed service bookings cannot be cancelled." });
     }
 
+    const finalReason = cancellationReason || reason || "Cancelled by customer";
     booking.status = "Cancelled";
+    booking.bookingStatus = "Cancelled";
+    booking.cancellationReason = finalReason;
     booking.statusHistory.push({
       status: "Cancelled",
-      note: req.body.reason || "Booking cancelled by customer",
+      note: finalReason,
       updatedAt: new Date(),
     });
 
@@ -313,7 +431,7 @@ router.patch("/bookings/:id/cancel", optionalAuth, async (req, res) => {
     res.json({
       success: true,
       booking,
-      message: `Service booking ${booking.bookingId} cancelled.`,
+      message: `Service booking #${booking.bookingId} cancelled.`,
     });
   } catch (err) {
     console.error("Error cancelling service booking:", err);
@@ -328,7 +446,7 @@ router.delete("/bookings/:id", requireAdmin, async (req, res) => {
     if (!booking) {
       return res.status(404).json({ message: "Service booking not found." });
     }
-    res.json({ success: true, message: `Service booking ${booking.bookingId} deleted.` });
+    res.json({ success: true, message: `Service booking #${booking.bookingId} deleted.` });
   } catch (err) {
     console.error("Error deleting service booking:", err);
     res.status(500).json({ message: "Failed to delete service booking.", error: err.message });
