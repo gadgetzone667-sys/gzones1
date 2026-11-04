@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { isAdminSubdomain } from "../lib/domain";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import gadgetZoneLogo from "../assets/Gadgetzone.png";
 import {
   ShieldAlert,
   Lock,
@@ -94,8 +95,19 @@ const AdminLogin = () => {
       >
         {/* Header Badge */}
         <div className="text-center space-y-2 mb-6">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/30 text-purple-400 mb-2 shadow-inner">
-            <KeyRound className="h-7 w-7" />
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <img
+              src={gadgetZoneLogo}
+              alt="GADGET ZONE Logo"
+              className="h-9 w-9 object-contain drop-shadow-[0_0_12px_rgba(56,189,248,0.6)]"
+            />
+            <span className="font-display text-xl font-black tracking-wider uppercase flex items-center gap-1">
+              <span className="text-sky-400">GADGET</span>
+              <span className="text-orange-500">ZONE</span>
+            </span>
+          </div>
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/30 text-purple-400 mb-1 shadow-inner">
+            <KeyRound className="h-6 w-6" />
           </div>
           <div className="flex items-center justify-center gap-1.5 flex-wrap">
             <span className="inline-block px-3 py-1 rounded-full bg-purple-500/15 border border-purple-500/40 text-purple-300 text-[10px] font-black uppercase tracking-widest">

@@ -1146,23 +1146,6 @@ const Admin = () => {
               )}
             </Button>
           )}
-          {activeTab === "services" && (
-            <Button
-              onClick={() => setShowAddService(!showAddService)}
-              variant={showAddService ? "outline" : "default"}
-              size="sm"
-            >
-              {showAddService ? (
-                <>
-                  <X className="h-4 w-4 mr-1" /> Cancel
-                </>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4 mr-1" /> Add Service
-                </>
-              )}
-            </Button>
-          )}
         </div>
       </div>
 

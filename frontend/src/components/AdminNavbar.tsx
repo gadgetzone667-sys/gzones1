@@ -3,8 +3,8 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { getStorefrontUrl } from "../lib/domain";
 import { Button } from "./ui/button";
+import gadgetZoneLogo from "../assets/Gadgetzone.png";
 import {
-  ShieldCheck,
   LogOut,
   ExternalLink,
   Globe,
@@ -26,19 +26,18 @@ export const AdminNavbar = () => {
         <div className="flex items-center gap-3">
           <Link
             to="/"
-            className="flex items-center gap-2.5 group transition-transform active:scale-95"
+            className="flex items-center gap-2.5 sm:gap-3 group transition-transform active:scale-95"
           >
-            <div className="relative flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-500 shadow-md shadow-purple-500/25 border border-purple-400/30">
-              <ShieldCheck className="h-5 w-5 text-white" />
-              <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-              </span>
-            </div>
+            <img
+              src={gadgetZoneLogo}
+              alt="GADGET ZONE Logo"
+              className="h-8 w-8 sm:h-9 sm:w-9 object-contain shrink-0 transition-transform duration-300 group-hover:scale-110 drop-shadow-[0_0_12px_rgba(56,189,248,0.6)]"
+            />
             <div className="flex flex-col">
               <div className="flex items-center gap-1.5">
-                <span className="font-display font-black text-base sm:text-lg tracking-wider text-white">
-                  GADGET<span className="text-purple-400">ZONE</span>
+                <span className="font-display font-black text-base sm:text-lg tracking-wider uppercase flex items-center gap-1 whitespace-nowrap">
+                  <span className="text-sky-400 group-hover:text-sky-300 transition-colors">GADGET</span>
+                  <span className="text-orange-500 group-hover:text-orange-400 transition-colors">ZONE</span>
                 </span>
                 <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-purple-500/20 text-purple-300 border border-purple-500/40">
                   ADMIN
