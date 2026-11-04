@@ -32,14 +32,7 @@ import {
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
-// Sample showcase images for rich visual gallery when product has only 1 image or multiple images
-const DEFAULT_LAPTOP_SHOWCASE = [
-  "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=900&auto=format&fit=crop&q=80",
-  "https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=900&auto=format&fit=crop&q=80",
-  "https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=900&auto=format&fit=crop&q=80",
-  "https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?w=900&auto=format&fit=crop&q=80",
-  "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=900&auto=format&fit=crop&q=80",
-];
+
 
 const ProductDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -122,46 +115,39 @@ const ProductDetails = () => {
     );
   }
 
-  // Build the complete list of images (supporting 5+ images!)
+  // Build the complete list of images strictly from uploaded product data (no dummy links)
   const rawImages: string[] = Array.isArray(product.images) && product.images.length > 0
     ? (product.images as string[]).filter(Boolean)
     : product.image
     ? [product.image as string]
     : [];
 
-  // If product only has 1 image, supplement with high-res showcase photos for laptops/hardware so gallery looks rich
-  const allImages: string[] = rawImages.length >= 2
-    ? rawImages
-    : rawImages.length === 1
-    ? [rawImages[0], ...DEFAULT_LAPTOP_SHOWCASE.slice(1)]
-    : DEFAULT_LAPTOP_SHOWCASE;
+  const allImages: string[] = rawImages;
+  const currentActiveImage = allImages[activeImageIndex] || allImages[0] || product.image || "";
 
-  const currentActiveImage = allImages[activeImageIndex] || allImages[0] || product.image;
-
-  // Highlights & Specs
+  // Highlights & Specs - strictly derived from actual saved product data (no dummy fallbacks)
   const specsMap = (product.specs || {}) as Record<string, string>;
   const hasCustomFeatures = Array.isArray(product.features) && product.features.length > 0;
 
-  // Inferred or provided key hardware specifications
-  const specProcessor = specsMap.Processor || specsMap["Processor Name"] || "Intel Core i5 12th Gen / Core Ultra";
-  const specRam = specsMap.RAM || specsMap["RAM Capacity"] || "8 GB DDR4 / 16 GB LPDDR5X";
-  const specStorage = specsMap.Storage || specsMap["SSD Capacity"] || "500 GB NVMe SSD / 512 GB SSD";
-  const specGpu = specsMap.Graphics || specsMap["Graphic Processor"] || "1080 Graphic Card / Dedicated GPU";
-  const specDisplay = specsMap.Display || specsMap["Display Size"] || "15.6 Inch Full HD (1920 x 1080) Anti-glare Display";
-  const specOs = specsMap.OS || specsMap["Operating System"] || "Windows 11 Home 64-bit";
-  const specWarranty = product.warranty || specsMap.Warranty || "1 Year Onsite Hardware Service";
+  const specProcessor = specsMap.Processor || specsMap["Processor Name"] || "";
+  const specRam = specsMap.RAM || specsMap["RAM Capacity"] || "";
+  const specStorage = specsMap.Storage || specsMap["SSD Capacity"] || "";
+  const specGpu = specsMap.Graphics || specsMap["Graphic Processor"] || "";
+  const specDisplay = specsMap.Display || specsMap["Display Size"] || "";
+  const specOs = specsMap.OS || specsMap["Operating System"] || "";
+  const specWarranty = product.warranty || specsMap.Warranty || "";
 
-  const defaultHighlightList: string[] = [
-    `${specProcessor} Processor`,
-    `${specRam} High-Speed Memory`,
-    `${specStorage} High-Speed NVMe Storage`,
-    `${specGpu} for smooth visual performance`,
-    `${specDisplay}`,
-    `${specOs} Pre-installed`,
-    `${specWarranty}`,
-  ];
+  const inferredHighlights: string[] = [
+    specProcessor ? `${specProcessor} Processor` : '',
+    specRam ? `${specRam} Memory` : '',
+    specStorage ? `${specStorage} Storage` : '',
+    specGpu ? `${specGpu}` : '',
+    specDisplay ? `${specDisplay}` : '',
+    specOs ? `${specOs}` : '',
+    specWarranty ? `${specWarranty}` : '',
+  ].filter(Boolean);
 
-  const highlightsList: string[] = hasCustomFeatures ? (product.features as string[]) : defaultHighlightList;
+  const highlightsList: string[] = hasCustomFeatures ? (product.features as string[]) : inferredHighlights;
 
   const calculatedDiscount = product.originalPrice && product.originalPrice > product.price
     ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
@@ -276,16 +262,23 @@ const ProductDetails = () => {
 
               {/* Main Image */}
               <AnimatePresence mode="wait">
-                <motion.img
-                  key={currentActiveImage}
-                  src={currentActiveImage}
-                  alt={product.name}
-                  initial={{ opacity: 0, scale: 0.96 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.98 }}
-                  transition={{ duration: 0.2 }}
-                  className="w-full h-full object-contain max-h-[460px] drop-shadow-md group-hover:scale-105 transition-transform duration-300"
-                />
+                {currentActiveImage ? (
+                  <motion.img
+                    key={currentActiveImage}
+                    src={currentActiveImage}
+                    alt={product.name}
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.98 }}
+                    transition={{ duration: 0.2 }}
+                    className="w-full h-full object-contain max-h-[460px] drop-shadow-md group-hover:scale-105 transition-transform duration-300"
+                  />
+                ) : (
+                  <div className="w-full h-full min-h-[300px] flex flex-col items-center justify-center text-muted-foreground p-6">
+                    <Package className="h-16 w-16 mb-2 stroke-1 opacity-40" />
+                    <span className="text-xs font-semibold">No product photo uploaded</span>
+                  </div>
+                )}
               </AnimatePresence>
 
               {/* Image Prev / Next Navigation Arrows */}

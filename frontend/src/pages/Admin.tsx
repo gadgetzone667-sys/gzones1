@@ -427,75 +427,91 @@ const Admin = () => {
   }
 
   const DEFAULT_NEW_PRODUCT: ProductFormData = {
-    name: "HP 15s Intel Core i5 12th Gen Thin & Light Laptop",
-    brand: "HP",
-    category: "Laptops",
-    price: "49999",
-    originalPrice: "68990",
-    description: "HP 15s is engineered with an Intel Core i5 12th Gen processor, high-speed DDR4 memory, and ultra-fast NVMe SSD storage. Built with a sleek micro-edge anti-glare display and military-grade durability, it offers reliable battery life, crystal-clear web conferencing, and dedicated graphics acceleration for effortless multitasking, productivity, and casual gaming.",
-    image: "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=900&auto=format&fit=crop&q=80",
-    images: [
-      "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=900&auto=format&fit=crop&q=80",
-      "https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=900&auto=format&fit=crop&q=80",
-      "https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=900&auto=format&fit=crop&q=80",
-      "https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?w=900&auto=format&fit=crop&q=80",
-      "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=900&auto=format&fit=crop&q=80",
-    ],
-    featuresText: [
-      "Intel Core i5 12th Gen High-Performance Processor",
-      "8 GB DDR4 High-Speed RAM (Expandable up to 16 GB)",
-      "500 GB NVMe PCIe M.2 SSD Fast Storage",
-      "1080 Graphic Card for Visual Acceleration & Gaming",
-      '15.6" Full HD (1920x1080) Micro-Edge Anti-Glare Display',
-      "Windows 11 Home 64-bit Pre-installed with Lifetime Validity",
-      "1 Year Onsite Hardware Service & Support",
-    ].join("\n"),
-    processor: "Intel Core i5 12th Gen",
-    ram: "8 GB DDR4",
-    storage: "500 GB NVMe SSD",
-    gpu: "1080 Graphic Card",
-    display: '15.6" Full HD (1920x1080) Anti-glare Micro-edge Display',
-    os: "Windows 11 Home 64-bit",
-    warranty: "1 Year Onsite Hardware Service",
-    stock: "15",
+    name: "",
+    brand: "",
+    category: "",
+    price: "",
+    originalPrice: "",
+    description: "",
+    image: "",
+    images: [],
+    featuresText: "",
+    processor: "",
+    ram: "",
+    storage: "",
+    gpu: "",
+    display: "",
+    os: "",
+    warranty: "",
+    stock: "",
   };
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<ProductFormData>(DEFAULT_NEW_PRODUCT);
   const [showAdd, setShowAdd] = useState(false);
   const [newProduct, setNewProduct] = useState<ProductFormData>(DEFAULT_NEW_PRODUCT);
-  const [newImageUrl, setNewImageUrl] = useState("");
-  const [editImageUrl, setEditImageUrl] = useState("");
 
-  const handleMultipleImageUpload = (
+  // Compress uploaded images client-side to ensure fast, crisp uploads without memory lag
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const MAX_DIM = 1200;
+          let w = img.width;
+          let h = img.height;
+          if (w > MAX_DIM || h > MAX_DIM) {
+            if (w > h) {
+              h = Math.round((h * MAX_DIM) / w);
+              w = MAX_DIM;
+            } else {
+              w = Math.round((w * MAX_DIM) / h);
+              h = MAX_DIM;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(e.target?.result as string);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.85));
+        };
+        img.onerror = () => resolve(e.target?.result as string);
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Multi-image upload: allows selecting 5, 10 or more images simultaneously in one go
+  const handleMultipleImageUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
     appendImages: (newUrls: string[]) => void
   ) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    const readers: Promise<string>[] = [];
-    Array.from(files).forEach((file) => {
-      if (file.type.startsWith("image/")) {
-        readers.push(
-          new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (ev) => resolve((ev.target?.result as string) || "");
-            reader.readAsDataURL(file);
-          })
-        );
-      }
-    });
-    if (readers.length === 0) {
-      toast.error("Please select valid image files.");
+    const imgFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    if (imgFiles.length === 0) {
+      toast.error('Please select valid image files (PNG, JPG, WebP, etc.).');
       return;
     }
-    Promise.all(readers).then((dataUrls) => {
-      const validUrls = dataUrls.filter(Boolean);
-      appendImages(validUrls);
-      toast.success(`Uploaded ${validUrls.length} image(s)!`);
-    });
+    const toastId = toast.loading(`Uploading ${imgFiles.length} photo(s)...`);
+    try {
+      const dataUrls = await Promise.all(imgFiles.map(compressImage));
+      const valid = dataUrls.filter(Boolean);
+      appendImages(valid);
+      toast.success(`Successfully uploaded ${valid.length} photo(s)!`, { id: toastId });
+    } catch {
+      toast.error('Failed to process some images.', { id: toastId });
+    }
+    e.target.value = '';
   };
-
 
   // Services Edit State
   const [services, setServices] = useState<AdminService[]>([]);
@@ -1168,76 +1184,31 @@ const Admin = () => {
         ? newProduct.images
         : newProduct.image
         ? [newProduct.image]
-        : [
-            "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=900&auto=format&fit=crop&q=80",
-            "https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=900&auto=format&fit=crop&q=80",
-            "https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=900&auto=format&fit=crop&q=80",
-            "https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?w=900&auto=format&fit=crop&q=80",
-            "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=900&auto=format&fit=crop&q=80",
-          ];
+        : [];
 
-      const primaryImage = finalImages[0];
+      const primaryImage = finalImages[0] || "";
 
       await addProduct({
         name: newProduct.name.trim(),
-        brand: newProduct.brand.trim() || "HP",
-        category: newProduct.category.trim() || "Laptops",
+        brand: newProduct.brand.trim(),
+        category: newProduct.category.trim() || "General",
         price: Number(newProduct.price),
-        originalPrice: newProduct.originalPrice ? Number(newProduct.originalPrice) : Math.round(Number(newProduct.price) * 1.25),
-        description:
-          newProduct.description.trim() ||
-          "Sleek and powerful laptop engineered for modern professionals, creators, and daily computing. Featuring advanced thermal cooling, military-grade chassis durability, vibrant micro-edge display, and high-speed NVMe storage.",
+        originalPrice: newProduct.originalPrice ? Number(newProduct.originalPrice) : undefined,
+        description: newProduct.description.trim(),
         image: primaryImage,
         images: finalImages,
-        features:
-          parsedFeatures.length > 0
-            ? parsedFeatures
-            : [
-                `${newProduct.processor || "Intel Core i5 12th Gen"} High-Performance Processor`,
-                `${newProduct.ram || "8 GB DDR4"} High-Speed RAM`,
-                `${newProduct.storage || "500 GB NVMe SSD"} High-Speed Storage`,
-                `${newProduct.gpu || "1080 Graphic Card"} for Visual Acceleration & Gaming`,
-                `${newProduct.display || '15.6" Full HD (1920x1080) Anti-glare Micro-edge Display'}`,
-                `${newProduct.os || "Windows 11 Home 64-bit"} Pre-installed with Lifetime Validity`,
-                `${newProduct.warranty || "1 Year Onsite Hardware Service & Support"}`,
-              ],
-        specs: Object.keys(specsObj).length > 0 ? specsObj : {
-          Processor: newProduct.processor || "Intel Core i5 12th Gen",
-          RAM: newProduct.ram || "8 GB DDR4",
-          Storage: newProduct.storage || "500 GB NVMe SSD",
-          Graphics: newProduct.gpu || "1080 Graphic Card",
-          Display: newProduct.display || '15.6" Full HD Anti-glare',
-          OS: newProduct.os || "Windows 11 Home",
-          Warranty: newProduct.warranty || "1 Year Onsite Hardware Service",
-        },
-        warranty: newProduct.warranty.trim() || "1 Year Onsite Hardware Service",
-        stock: Number(newProduct.stock) || 15,
-        rating: 4.3,
-        reviewCount: 488,
-        featured: true,
+        features: parsedFeatures,
+        specs: specsObj,
+        warranty: newProduct.warranty.trim() || "Standard Warranty",
+        stock: Number(newProduct.stock) || 0,
+        rating: 5.0,
+        reviewCount: 0,
+        featured: false,
       });
 
-      setNewProduct({
-        name: "",
-        brand: "HP",
-        category: "Laptops",
-        price: "",
-        originalPrice: "",
-        description: "",
-        image: "",
-        images: [],
-        featuresText: "",
-        processor: "Intel Core i5 12th Gen",
-        ram: "8 GB DDR4",
-        storage: "500 GB NVMe SSD",
-        gpu: "1080 Graphic Card",
-        display: '15.6" Full HD (1920x1080) Display',
-        os: "Windows 11 Home",
-        warranty: "1 Year Onsite Hardware Service",
-        stock: "15",
-      });
+      setNewProduct(DEFAULT_NEW_PRODUCT);
       setShowAdd(false);
-      toast.success("Product added successfully with 5+ photos and full specifications!");
+      toast.success("Product created successfully!");
     } catch (err: any) {
       toast.error(err.message || "Failed to add product.");
     }
@@ -1665,10 +1636,10 @@ const Admin = () => {
               <div className="flex items-center justify-between border-b border-border/60 pb-4">
                 <div>
                   <h2 className="text-lg font-bold flex items-center gap-2 text-foreground">
-                    <Package className="h-5 w-5 text-primary" /> Add New Product to Store Catalog
+                    <Package className="h-5 w-5 text-primary" /> Add New Product
                   </h2>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Configure multi-image showcase (5+ photos), technical specifications, and Flipkart-style feature highlights.
+                    Upload 5+ photos at the same time directly from your device, configure specifications, and point-wise highlights.
                   </p>
                 </div>
                 <Button size="sm" variant="ghost" onClick={() => setShowAdd(false)}>
@@ -1734,54 +1705,57 @@ const Admin = () => {
                 </div>
               </div>
 
-              {/* 2. Multi-Image Showcase (5+ Photos) */}
+              {/* 2. Multi-Image Showcase (Upload 5+ Photos At The Same Time) */}
               <div className="space-y-3 border-t border-border/40 pt-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <Images className="h-4 w-4 text-purple-400" />
                     <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      2. Multi-Image Showcase (5+ Photos)
+                      2. Product Photos (Select 5+ at once)
                     </span>
                     <span
                       className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${
                         newProduct.images.length >= 5
                           ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                          : "bg-amber-500/10 text-amber-300 border-amber-500/30"
+                          : newProduct.images.length > 0
+                          ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
+                          : "bg-muted text-muted-foreground border-border"
                       }`}
                     >
-                      {newProduct.images.length} / 5+ Photos Added
+                      {newProduct.images.length} Photo{newProduct.images.length !== 1 ? "s" : ""} Added
                     </span>
                   </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="text-xs h-7 gap-1 border-purple-500/40 text-purple-300 hover:bg-purple-500/10"
-                    onClick={() => {
-                      const sampleImgs = [
-                        "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=900&auto=format&fit=crop&q=80",
-                        "https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=900&auto=format&fit=crop&q=80",
-                        "https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=900&auto=format&fit=crop&q=80",
-                        "https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?w=900&auto=format&fit=crop&q=80",
-                        "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=900&auto=format&fit=crop&q=80",
-                      ];
-                      setNewProduct((p) => ({
-                        ...p,
-                        images: sampleImgs,
-                        image: sampleImgs[0],
-                      }));
-                      toast.success("Loaded 5 high-resolution HP laptop sample photos!");
-                    }}
-                  >
-                    ⚡ Preset: 5 Sample Laptop Photos
-                  </Button>
+
+                  {/* Prominent Multi-Photo Upload Button */}
+                  <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-md">
+                    <Upload className="h-4 w-4" />
+                    <span>Upload Photos (Select 5+ at once)</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) =>
+                        handleMultipleImageUpload(e, (urls) =>
+                          setNewProduct((p) => {
+                            const combined = [...p.images, ...urls];
+                            return {
+                              ...p,
+                              images: combined,
+                              image: p.image || combined[0] || "",
+                            };
+                          })
+                        )
+                      }
+                    />
+                  </label>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  The first photo (#1) serves as the primary catalog cover. Drag or click "Set Cover" to reorder.
+                  Hold Ctrl (Windows) or Cmd (Mac) in your file dialog to select 5 or more photos at the same time. The first photo (#1) is the main catalog cover.
                 </p>
 
                 {/* Thumbnail Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-6 gap-3 p-3 bg-muted/20 rounded-xl border border-border">
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3 p-3 bg-muted/20 rounded-xl border border-border min-h-[120px]">
                   {newProduct.images.map((imgUrl, idx) => (
                     <div
                       key={idx}
@@ -1828,10 +1802,10 @@ const Admin = () => {
                     </div>
                   ))}
 
-                  {/* Add Image Box */}
-                  <label className="border-2 border-dashed border-border/80 hover:border-primary/60 rounded-xl aspect-square flex flex-col items-center justify-center cursor-pointer bg-background/40 hover:bg-primary/5 transition-all p-2 text-center">
-                    <Upload className="h-5 w-5 text-muted-foreground mb-1" />
-                    <span className="text-[11px] font-bold text-foreground">Upload Photos</span>
+                  {/* Add More Photos Dropzone */}
+                  <label className="border-2 border-dashed border-border/80 hover:border-primary/60 rounded-xl aspect-square flex flex-col items-center justify-center cursor-pointer bg-background/40 hover:bg-primary/5 transition-all p-2 text-center group">
+                    <Upload className="h-6 w-6 text-muted-foreground group-hover:text-primary mb-1 transition-colors" />
+                    <span className="text-[11px] font-bold text-foreground">Add Photos</span>
                     <span className="text-[9px] text-muted-foreground">Select multiple (5+)</span>
                     <input
                       type="file"
@@ -1853,33 +1827,6 @@ const Admin = () => {
                     />
                   </label>
                 </div>
-
-                {/* Paste Single Image URL */}
-                <div className="flex gap-2">
-                  <Input
-                    value={newImageUrl}
-                    onChange={(e) => setNewImageUrl(e.target.value)}
-                    placeholder="Or paste an image URL (https://...)"
-                    className="text-xs h-9 bg-background/80"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    className="shrink-0 text-xs h-9"
-                    onClick={() => {
-                      if (!newImageUrl.trim()) return;
-                      setNewProduct((p) => {
-                        const combined = [...p.images, newImageUrl.trim()];
-                        return { ...p, images: combined, image: p.image || combined[0] };
-                      });
-                      setNewImageUrl("");
-                      toast.success("Image URL added to gallery!");
-                    }}
-                  >
-                    + Add URL
-                  </Button>
-                </div>
               </div>
 
               {/* 3. Product Highlights (Point-Wise) */}
@@ -1891,12 +1838,12 @@ const Admin = () => {
                   </Label>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  These appear on the right side of the product page with checkmark icons (e.g. processor, RAM, SSD, graphics).
+                  Each line appears on the right side of the customer product page with a checkmark icon.
                 </p>
                 <Textarea
                   value={newProduct.featuresText}
                   onChange={(e) => setNewProduct((p) => ({ ...p, featuresText: e.target.value }))}
-                  placeholder={`Intel Core i5 12th Gen High-Performance Processor\n8 GB DDR4 High-Speed RAM\n500 GB NVMe PCIe M.2 SSD Fast Storage\n1080 Graphic Card for Visual Acceleration & Gaming\n15.6" Full HD (1920x1080) Micro-Edge Anti-Glare Display\nWindows 11 Home 64-bit Pre-installed\n1 Year Onsite Hardware Service & Support`}
+                  placeholder="Enter point-wise highlights (one bullet per line)..."
                   rows={4}
                   className="bg-background/80 font-mono text-xs"
                 />
@@ -1906,7 +1853,7 @@ const Admin = () => {
               <div className="space-y-3 border-t border-border/40 pt-4">
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   <Cpu className="h-4 w-4 text-sky-400" />
-                  <span>4. Technical Specifications (Specifications Tab Table)</span>
+                  <span>4. Technical Specifications (Specifications Table)</span>
                 </div>
                 <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="space-y-1">
@@ -1914,7 +1861,7 @@ const Admin = () => {
                     <Input
                       value={newProduct.processor}
                       onChange={(e) => setNewProduct((p) => ({ ...p, processor: e.target.value }))}
-                      placeholder="Intel Core i5 12th Gen"
+                      placeholder="e.g. Intel Core i5 12th Gen"
                       className="bg-background/80 text-xs h-8"
                     />
                   </div>
@@ -1923,7 +1870,7 @@ const Admin = () => {
                     <Input
                       value={newProduct.ram}
                       onChange={(e) => setNewProduct((p) => ({ ...p, ram: e.target.value }))}
-                      placeholder="8 GB DDR4"
+                      placeholder="e.g. 8 GB DDR4"
                       className="bg-background/80 text-xs h-8"
                     />
                   </div>
@@ -1932,7 +1879,7 @@ const Admin = () => {
                     <Input
                       value={newProduct.storage}
                       onChange={(e) => setNewProduct((p) => ({ ...p, storage: e.target.value }))}
-                      placeholder="500 GB NVMe SSD"
+                      placeholder="e.g. 500 GB NVMe SSD"
                       className="bg-background/80 text-xs h-8"
                     />
                   </div>
@@ -1941,7 +1888,7 @@ const Admin = () => {
                     <Input
                       value={newProduct.gpu}
                       onChange={(e) => setNewProduct((p) => ({ ...p, gpu: e.target.value }))}
-                      placeholder="1080 Graphic Card"
+                      placeholder="e.g. 1080 Graphic Card"
                       className="bg-background/80 text-xs h-8"
                     />
                   </div>
@@ -1950,7 +1897,7 @@ const Admin = () => {
                     <Input
                       value={newProduct.display}
                       onChange={(e) => setNewProduct((p) => ({ ...p, display: e.target.value }))}
-                      placeholder='15.6" Full HD (1920x1080)'
+                      placeholder='e.g. 15.6" Full HD (1920x1080)'
                       className="bg-background/80 text-xs h-8"
                     />
                   </div>
@@ -1959,7 +1906,7 @@ const Admin = () => {
                     <Input
                       value={newProduct.os}
                       onChange={(e) => setNewProduct((p) => ({ ...p, os: e.target.value }))}
-                      placeholder="Windows 11 Home 64-bit"
+                      placeholder="e.g. Windows 11 Home 64-bit"
                       className="bg-background/80 text-xs h-8"
                     />
                   </div>
@@ -1968,7 +1915,7 @@ const Admin = () => {
                     <Input
                       value={newProduct.warranty}
                       onChange={(e) => setNewProduct((p) => ({ ...p, warranty: e.target.value }))}
-                      placeholder="1 Year Onsite Hardware Service"
+                      placeholder="e.g. 1 Year Onsite Hardware Service"
                       className="bg-background/80 text-xs h-8"
                     />
                   </div>
@@ -1978,7 +1925,7 @@ const Admin = () => {
                       type="number"
                       value={newProduct.stock}
                       onChange={(e) => setNewProduct((p) => ({ ...p, stock: e.target.value }))}
-                      placeholder="15"
+                      placeholder="Stock count"
                       className="bg-background/80 text-xs h-8"
                     />
                   </div>
@@ -1987,11 +1934,11 @@ const Admin = () => {
 
               {/* 5. Detailed Description */}
               <div className="space-y-1 border-t border-border/40 pt-4">
-                <Label className="text-xs font-semibold">Full Product Description</Label>
+                <Label className="text-xs font-semibold">Product Description</Label>
                 <Textarea
                   value={newProduct.description}
                   onChange={(e) => setNewProduct((p) => ({ ...p, description: e.target.value }))}
-                  placeholder="Detailed multi-paragraph description of the product, design, features, performance, battery life, and connectivity."
+                  placeholder="Enter full product description..."
                   rows={3}
                   className="bg-background/80 text-xs"
                 />
@@ -2013,12 +1960,12 @@ const Admin = () => {
             {products.length === 0 && !showAdd && (
               <div className="text-center py-16 px-4 border border-dashed border-border rounded-2xl bg-card/40 my-6">
                 <Package className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-60" />
-                <h3 className="font-bold text-lg mb-1">No products in MongoDB yet</h3>
+                <h3 className="font-bold text-lg mb-1">No products in catalog</h3>
                 <p className="text-sm text-muted-foreground max-w-md mx-auto mb-5">
-                  Your store catalog is currently empty. Add your first dynamic product using the button below.
+                  Your store catalog is currently empty. Click the button below to add a product.
                 </p>
                 <Button onClick={() => setShowAdd(true)} className="rounded-xl gap-1.5 font-bold">
-                  <Plus className="h-4 w-4" /> Add First Product
+                  <Plus className="h-4 w-4" /> Add Product
                 </Button>
               </div>
             )}
@@ -2109,37 +2056,40 @@ const Admin = () => {
                           </div>
                         </div>
 
-                        {/* Multi-Image Showcase (5+ Photos) */}
+                        {/* Multi-Image Upload (Select 5+ at once) */}
                         <div className="space-y-2 border-t border-border/40 pt-3">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               <Images className="h-4 w-4 text-purple-400" />
                               <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                Product Gallery ({editForm.images.length} Photos)
+                                Product Photos ({editForm.images.length} Photos)
                               </Label>
                             </div>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="text-xs h-6 text-purple-300"
-                              onClick={() => {
-                                const sampleImgs = [
-                                  "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=900&auto=format&fit=crop&q=80",
-                                  "https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=900&auto=format&fit=crop&q=80",
-                                  "https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=900&auto=format&fit=crop&q=80",
-                                  "https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?w=900&auto=format&fit=crop&q=80",
-                                  "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=900&auto=format&fit=crop&q=80",
-                                ];
-                                setEditForm((f) => ({ ...f, images: sampleImgs, image: sampleImgs[0] }));
-                                toast.success("Loaded 5 sample laptop photos!");
-                              }}
-                            >
-                              ⚡ Load 5 Sample Photos
-                            </Button>
+                            <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-sm">
+                              <Upload className="h-3 w-3" />
+                              <span>Upload Photos (Select 5+ at once)</span>
+                              <input
+                                type="file"
+                                multiple
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) =>
+                                  handleMultipleImageUpload(e, (urls) =>
+                                    setEditForm((f) => {
+                                      const combined = [...f.images, ...urls];
+                                      return {
+                                        ...f,
+                                        images: combined,
+                                        image: f.image || combined[0] || "",
+                                      };
+                                    })
+                                  )
+                                }
+                              />
+                            </label>
                           </div>
 
-                          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 p-2 bg-muted/20 rounded-xl border border-border">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 p-2 bg-muted/20 rounded-xl border border-border min-h-[100px]">
                             {editForm.images.map((imgUrl, idx) => (
                               <div
                                 key={idx}
@@ -2182,8 +2132,8 @@ const Admin = () => {
                             ))}
 
                             <label className="border-2 border-dashed border-border hover:border-primary rounded-lg aspect-square flex flex-col items-center justify-center cursor-pointer bg-background/50 hover:bg-primary/5 transition-all p-1 text-center">
-                              <Upload className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-[10px] font-bold mt-0.5">Upload</span>
+                              <Upload className="h-5 w-5 text-muted-foreground mb-0.5" />
+                              <span className="text-[10px] font-bold">Add Photos</span>
                               <input
                                 type="file"
                                 multiple
@@ -2203,32 +2153,6 @@ const Admin = () => {
                                 }
                               />
                             </label>
-                          </div>
-
-                          <div className="flex gap-2">
-                            <Input
-                              value={editImageUrl}
-                              onChange={(e) => setEditImageUrl(e.target.value)}
-                              placeholder="Or paste an image URL (https://...)"
-                              className="text-xs h-8 bg-background/80"
-                            />
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="secondary"
-                              className="shrink-0 text-xs h-8"
-                              onClick={() => {
-                                if (!editImageUrl.trim()) return;
-                                setEditForm((f) => {
-                                  const combined = [...f.images, editImageUrl.trim()];
-                                  return { ...f, images: combined, image: f.image || combined[0] };
-                                });
-                                setEditImageUrl("");
-                                toast.success("Image URL added!");
-                              }}
-                            >
-                              + Add URL
-                            </Button>
                           </div>
                         </div>
 
@@ -2319,11 +2243,18 @@ const Admin = () => {
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                         <div className="flex items-center gap-4 min-w-0">
                           <div className="relative shrink-0">
-                            <img
-                              src={p.image || (p.images && p.images[0]) || "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=400"}
-                              alt={p.name}
-                              className="h-16 w-16 sm:h-20 sm:w-20 rounded-xl object-cover border border-border shadow-sm"
-                            />
+                            {p.image || (Array.isArray(p.images) && p.images[0]) ? (
+                              <img
+                                src={p.image || p.images![0]}
+                                alt={p.name}
+                                className="h-16 w-16 sm:h-20 sm:w-20 rounded-xl object-cover border border-border shadow-sm"
+                              />
+                            ) : (
+                              <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-xl bg-muted/40 border border-border flex flex-col items-center justify-center text-muted-foreground">
+                                <Camera className="h-6 w-6 stroke-1" />
+                                <span className="text-[9px] mt-0.5">No Photo</span>
+                              </div>
+                            )}
                             {Array.isArray(p.images) && p.images.length > 1 && (
                               <span className="absolute bottom-1 right-1 bg-black/80 text-white font-extrabold text-[9px] px-1.5 py-0.5 rounded-full border border-white/20">
                                 📸 {p.images.length}

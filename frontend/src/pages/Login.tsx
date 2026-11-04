@@ -687,7 +687,7 @@ const Login = () => {
           <div className="hidden md:flex flex-1 p-4 bg-background">
             <div className="w-full h-full relative rounded-2xl overflow-hidden bg-gradient-to-br from-indigo-900 to-zinc-900 shadow-inner flex items-center justify-center">
               <img
-                src="https://images.unsplash.com/photo-1587202372634-32705e3bf49c?q=80&w=1000&auto=format&fit=crop"
+                src="/assets/Gadgetzone.png"
                 alt="Elite Gaming PC"
                 className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-90 transition-transform duration-1000 hover:scale-105"
               />
