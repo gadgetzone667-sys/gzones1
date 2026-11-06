@@ -57,10 +57,7 @@ import {
   Play,
   Check,
   Star,
-  Smartphone,
   KeyRound,
-  Copy,
-  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import SEOHead from "../components/SEOHead";
@@ -251,16 +248,6 @@ const Admin = () => {
   const [bulkBatchStatus, setBulkBatchStatus] = useState<string>("Confirmed");
   const [bulkStatusUpdating, setBulkStatusUpdating] = useState(false);
 
-  // --- Security & 2FA State ---
-  const [twoFactorActive, setTwoFactorActive] = useState<boolean>(Boolean(user?.twoFactorEnabled));
-  const [twoFactorLoading, setTwoFactorLoading] = useState<boolean>(false);
-  const [show2FASetupModal, setShow2FASetupModal] = useState<boolean>(false);
-  const [setupQRUrl, setSetupQRUrl] = useState<string>("");
-  const [setupSecret, setSetupSecret] = useState<string>("");
-  const [setupOTP, setSetupOTP] = useState<string>("");
-  const [setupVerifying, setSetupVerifying] = useState<boolean>(false);
-  const [activeBackupCodes, setActiveBackupCodes] = useState<string[] | null>(null);
-
   // Change Password State
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -269,35 +256,6 @@ const Admin = () => {
   const [showNewPass, setShowNewPass] = useState(false);
   const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [changePassLoading, setChangePassLoading] = useState(false);
-
-  // Disable 2FA Modal
-  const [showDisable2FAModal, setShowDisable2FAModal] = useState(false);
-  const [disablePasswordInput, setDisablePasswordInput] = useState("");
-  const [disableLoading, setDisableLoading] = useState(false);
-
-  const fetch2FAStatus = useCallback(async () => {
-    try {
-      setTwoFactorLoading(true);
-      const activeToken = token || localStorage.getItem("GadgetZone_token");
-      const res = await fetch("/api/auth/2fa/status", {
-        headers: { Authorization: `Bearer ${activeToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setTwoFactorActive(Boolean(data.twoFactorEnabled));
-      }
-    } catch {
-      // fallback
-    } finally {
-      setTwoFactorLoading(false);
-    }
-  }, [token]);
-
-  useEffect(() => {
-    if (activeTab === "security") {
-      fetch2FAStatus();
-    }
-  }, [activeTab, fetch2FAStatus]);
 
   const handleChangePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -336,7 +294,7 @@ const Admin = () => {
         if (data?.token) {
           localStorage.setItem("GadgetZone_token", data.token);
         }
-        toast.success("Administrator password updated successfully!");
+        toast.success("Administrator password updated in database successfully!");
         setCurrentPassword("");
         setNewPassword("");
         setConfirmPassword("");
@@ -349,151 +307,6 @@ const Admin = () => {
       setChangePassLoading(false);
     }
   };
-
-  const handleStart2FASetup = async () => {
-    try {
-      setSetupVerifying(true);
-      const activeToken = token || localStorage.getItem("GadgetZone_token");
-      const res = await fetch("/api/auth/2fa/generate", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${activeToken}` },
-      });
-      const data = await res.json().catch(() => null);
-      if (res.ok && data) {
-        setSetupQRUrl(data.qrCodeDataUrl);
-        setSetupSecret(data.secret);
-        setSetupOTP("");
-        setShow2FASetupModal(true);
-      } else {
-        toast.error(data?.error || "Failed to generate 2FA credentials.");
-      }
-    } catch {
-      toast.error("Failed to connect to 2FA service.");
-    } finally {
-      setSetupVerifying(false);
-    }
-  };
-
-  const handleVerify2FASetup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanOTP = setupOTP.trim();
-    if (!cleanOTP || cleanOTP.length !== 6) {
-      toast.error("Please enter the 6-digit OTP code from Google Authenticator.");
-      return;
-    }
-
-    setSetupVerifying(true);
-    try {
-      const activeToken = token || localStorage.getItem("GadgetZone_token");
-      const res = await fetch("/api/auth/2fa/verify-enable", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${activeToken}`,
-        },
-        body: JSON.stringify({ token: cleanOTP }),
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (res.ok) {
-        setTwoFactorActive(true);
-        setShow2FASetupModal(false);
-        setActiveBackupCodes(data.backupCodes || []);
-        toast.success("Google Authenticator 2FA activated successfully!");
-      } else {
-        toast.error(data?.error || "Invalid 6-digit OTP code. Please try again.");
-      }
-    } catch {
-      toast.error("Verification failed. Please check backend connection.");
-    } finally {
-      setSetupVerifying(false);
-    }
-  };
-
-  const handleDisable2FA = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!disablePasswordInput.trim()) {
-      toast.error("Please enter your current administrator password to confirm.");
-      return;
-    }
-
-    setDisableLoading(true);
-    try {
-      const activeToken = token || localStorage.getItem("GadgetZone_token");
-      const res = await fetch("/api/auth/2fa/disable", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${activeToken}`,
-        },
-        body: JSON.stringify({ password: disablePasswordInput.trim() }),
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (res.ok) {
-        setTwoFactorActive(false);
-        setShowDisable2FAModal(false);
-        setDisablePasswordInput("");
-        toast.success("Two-Factor Authentication has been disabled.");
-      } else {
-        toast.error(data?.error || "Incorrect password. 2FA was not disabled.");
-      }
-    } catch {
-      toast.error("Failed to disable 2FA.");
-    } finally {
-      setDisableLoading(false);
-    }
-  };
-
-  const handleRegenerateBackupCodes = async () => {
-    if (!window.confirm("Are you sure? This will invalidate all previous backup recovery codes and generate 8 new single-use codes.")) {
-      return;
-    }
-    try {
-      const activeToken = token || localStorage.getItem("GadgetZone_token");
-      const res = await fetch("/api/auth/2fa/regenerate-backup-codes", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${activeToken}`,
-        },
-        body: JSON.stringify({}),
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (res.ok && data?.backupCodes) {
-        setActiveBackupCodes(data.backupCodes);
-        toast.success("New emergency backup recovery codes generated!");
-      } else {
-        toast.error(data?.error || "Failed to regenerate backup codes.");
-      }
-    } catch {
-      toast.error("Failed to regenerate backup codes.");
-    }
-  };
-
-  const downloadBackupCodes = (codes: string[]) => {
-    const text = "=== GADGETZONE ADMIN EMERGENCY BACKUP RECOVERY CODES ===\n\n" +
-      "Keep these single-use recovery codes in a safe place.\n" +
-      "Each code can be used exactly once to log in if you lose access to Google Authenticator.\n\n" +
-      codes.map((c, i) => `${i + 1}. ${c}`).join("\n") +
-      "\n\nGenerated at: " + new Date().toISOString() + "\n";
-
-    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "gadgetzone-admin-backup-codes.txt";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    toast.success("Backup recovery codes downloaded.");
-  };
-
 
   // Modal for placing bulk custom PC orders
   const [showBulkOrderModal, setShowBulkOrderModal] = useState(false);
@@ -1879,7 +1692,7 @@ const Admin = () => {
           { id: "components", label: "PC Builder Components", icon: Cpu },
           { id: "orders", label: "Orders" },
           { id: "reviews", label: "Reviews" },
-          { id: "security", label: "Security & 2FA", icon: ShieldCheck },
+          { id: "security", label: "Change Password", icon: KeyRound },
         ].map((tab) => {
           const Icon = tab.icon;
           return (
@@ -5506,464 +5319,149 @@ const Admin = () => {
       )}
 
       {/* ========================================================= */}
-      {/* TAB 7: SECURITY & TWO-FACTOR AUTHENTICATION (TOTP 2FA)   */}
+      {/* TAB 7: CHANGE PASSWORD (ADMIN DATABASE UPDATE)            */}
       {/* ========================================================= */}
       {activeTab === "security" && (
-        <div className="space-y-8 animate-fade-in-up">
+        <div className="space-y-6 animate-fade-in-up max-w-2xl mx-auto">
           {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/60">
-            <div>
-              <h2 className="text-xl sm:text-2xl font-extrabold flex items-center gap-2.5 text-foreground font-display">
-                <ShieldCheck className="h-6 w-6 text-purple-400" /> Security & Authentication Settings
-              </h2>
-              <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                Manage administrative access credentials, change passwords with cryptographic hashing, and configure Google Authenticator TOTP 2FA.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={fetch2FAStatus}
-                disabled={twoFactorLoading}
-                className="gap-1.5 text-xs font-semibold"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${twoFactorLoading ? "animate-spin" : ""}`} /> Refresh Status
-              </Button>
-            </div>
+          <div className="pb-4 border-b border-border/60">
+            <h2 className="text-xl sm:text-2xl font-extrabold flex items-center gap-2.5 text-foreground font-display">
+              <KeyRound className="h-6 w-6 text-purple-400" /> Change Administrator Password
+            </h2>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+              Update your master administrator password. Passwords are securely hashed with Bcrypt (12 salt rounds) and stored in MongoDB.
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-            {/* CARD 1: CHANGE PASSWORD */}
-            <div className="rounded-2xl border border-border/80 bg-card/80 backdrop-blur-md p-6 space-y-6 shadow-xl">
-              <div className="flex items-center gap-3 pb-3 border-b border-border/60">
-                <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-400">
-                  <KeyRound className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-base text-foreground">Change Password</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Update your master administrator password. Salted & hashed using Bcrypt.
-                  </p>
-                </div>
+          {/* CHANGE PASSWORD CARD */}
+          <div className="rounded-2xl border border-border/80 bg-card/80 backdrop-blur-md p-6 sm:p-8 space-y-6 shadow-xl">
+            <div className="flex items-center gap-3 pb-3 border-b border-border/60">
+              <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-400">
+                <KeyRound className="h-5 w-5" />
               </div>
-
-              <form onSubmit={handleChangePasswordSubmit} className="space-y-4">
-                {/* Current Password */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold">Current Password *</Label>
-                  <div className="relative">
-                    <Input
-                      type={showCurrentPass ? "text" : "password"}
-                      required
-                      placeholder="Enter current password"
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="pr-10 text-xs bg-background/80"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowCurrentPass(!showCurrentPass)}
-                      className="absolute right-3 top-2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showCurrentPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* New Password */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold">New Password *</Label>
-                  <div className="relative">
-                    <Input
-                      type={showNewPass ? "text" : "password"}
-                      required
-                      placeholder="Enter strong new password (min. 8 chars)"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="pr-10 text-xs bg-background/80"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPass(!showNewPass)}
-                      className="absolute right-3 top-2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showNewPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-
-                  {/* Password Strength Checklist */}
-                  {newPassword.length > 0 && (
-                    <div className="grid grid-cols-2 gap-1.5 pt-2 text-[11px]">
-                      <span className={`flex items-center gap-1 ${newPassword.length >= 8 ? "text-emerald-400" : "text-muted-foreground"}`}>
-                        <Check className="h-3 w-3" /> Min 8 characters
-                      </span>
-                      <span className={`flex items-center gap-1 ${/[A-Z]/.test(newPassword) ? "text-emerald-400" : "text-muted-foreground"}`}>
-                        <Check className="h-3 w-3" /> Uppercase letter
-                      </span>
-                      <span className={`flex items-center gap-1 ${/[a-z]/.test(newPassword) ? "text-emerald-400" : "text-muted-foreground"}`}>
-                        <Check className="h-3 w-3" /> Lowercase letter
-                      </span>
-                      <span className={`flex items-center gap-1 ${/[0-9]/.test(newPassword) ? "text-emerald-400" : "text-muted-foreground"}`}>
-                        <Check className="h-3 w-3" /> Number (0-9)
-                      </span>
-                      <span className={`flex items-center gap-1 ${/[^A-Za-z0-9]/.test(newPassword) ? "text-emerald-400" : "text-muted-foreground"}`}>
-                        <Check className="h-3 w-3" /> Special character (@$!%*?)
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Confirm New Password */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold">Confirm New Password *</Label>
-                  <div className="relative">
-                    <Input
-                      type={showConfirmPass ? "text" : "password"}
-                      required
-                      placeholder="Re-type new password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="pr-10 text-xs bg-background/80"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPass(!showConfirmPass)}
-                      className="absolute right-3 top-2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showConfirmPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  {confirmPassword.length > 0 && newPassword !== confirmPassword && (
-                    <p className="text-[11px] text-rose-400">Passwords do not match.</p>
-                  )}
-                  {confirmPassword.length > 0 && newPassword === confirmPassword && (
-                    <p className="text-[11px] text-emerald-400 flex items-center gap-1">
-                      <Check className="h-3 w-3" /> Passwords match!
-                    </p>
-                  )}
-                </div>
-
-                <Button
-                  type="submit"
-                  disabled={changePassLoading || !newPassword || newPassword !== confirmPassword}
-                  className="w-full gap-2 font-bold text-xs bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-600/20"
-                >
-                  {changePassLoading ? (
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  <span>{changePassLoading ? "Updating Password..." : "Update Password"}</span>
-                </Button>
-              </form>
+              <div>
+                <h3 className="font-bold text-base text-foreground">Master Password Update</h3>
+                <p className="text-xs text-muted-foreground">
+                  Enter your current password followed by the new password.
+                </p>
+              </div>
             </div>
 
-            {/* CARD 2: GOOGLE AUTHENTICATOR (TOTP 2FA) */}
-            <div className="rounded-2xl border border-border/80 bg-card/80 backdrop-blur-md p-6 space-y-6 shadow-xl">
-              <div className="flex items-center justify-between pb-3 border-b border-border/60">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-400">
-                    <Smartphone className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-base text-foreground">Google Authenticator (2FA)</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Time-based One-Time Password (TOTP) two-factor authentication.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Status Badge */}
-                <span
-                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
-                    twoFactorActive
-                      ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
-                      : "bg-amber-500/15 border-amber-500/40 text-amber-300"
-                  }`}
-                >
-                  {twoFactorActive ? (
-                    <>
-                      <CheckCircle2 className="h-3.5 w-3.5" /> Active & Protected
-                    </>
-                  ) : (
-                    <>
-                      <AlertTriangle className="h-3.5 w-3.5" /> Inactive
-                    </>
-                  )}
-                </span>
-              </div>
-
-              {twoFactorActive ? (
-                <div className="space-y-5">
-                  <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/25 space-y-2">
-                    <p className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
-                      <ShieldCheck className="h-4 w-4" /> Two-Factor Authentication is currently active
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Your administrator account is shielded with Google Authenticator. A 6-digit TOTP code or single-use recovery code is required upon every administrative login.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleRegenerateBackupCodes}
-                      className="gap-2 text-xs font-semibold flex-1 border-border/80"
-                    >
-                      <KeyRound className="h-3.5 w-3.5 text-sky-400" /> Regenerate 8 Backup Codes
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => setShowDisable2FAModal(true)}
-                      className="gap-2 text-xs font-semibold"
-                    >
-                      <XCircle className="h-3.5 w-3.5" /> Disable 2FA
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-5">
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Adding 2FA prevents unauthorized account takeover even if your password is leaked or compromised. Compatible with Google Authenticator, Microsoft Authenticator, and 1Password.
-                  </p>
-
-                  <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                      How setup works:
-                    </span>
-                    <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal pl-4">
-                      <li>Scan the generated QR code into your Google Authenticator mobile app.</li>
-                      <li>Enter the initial 6-digit code displayed on your phone to verify.</li>
-                      <li>Receive 8 emergency single-use backup recovery codes.</li>
-                    </ol>
-                  </div>
-
-                  <Button
-                    onClick={handleStart2FASetup}
-                    className="w-full gap-2 font-bold text-xs bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white shadow-lg shadow-sky-500/20"
-                  >
-                    <Smartphone className="h-4 w-4" /> Setup Google Authenticator Now
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: 2FA SETUP WIZARD */}
-      {show2FASetupModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-5 animate-fade-in-up">
-            <div className="flex items-start justify-between pb-3 border-b border-border">
-              <div className="flex items-center gap-2">
-                <Smartphone className="h-5 w-5 text-sky-400" />
-                <h3 className="font-bold text-base text-foreground">Set Up Google Authenticator</h3>
-              </div>
-              <Button size="sm" variant="ghost" onClick={() => setShow2FASetupModal(false)} className="h-7 w-7 p-0">
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="space-y-4">
-              <p className="text-xs text-muted-foreground">
-                1. Open Google Authenticator on your smartphone and scan this QR code:
-              </p>
-
-              {/* QR Code Container */}
-              <div className="p-4 bg-white rounded-2xl flex items-center justify-center w-52 h-52 mx-auto shadow-md">
-                {setupQRUrl ? (
-                  <img src={setupQRUrl} alt="2FA Setup QR Code" className="w-full h-full object-contain" />
-                ) : (
-                  <div className="text-xs text-black font-semibold">Generating QR Code...</div>
-                )}
-              </div>
-
-              {/* Manual Secret Key */}
-              <div className="space-y-1">
-                <span className="text-[11px] text-muted-foreground font-semibold">Or enter this key manually:</span>
-                <div className="flex items-center gap-2 p-2 bg-muted/40 rounded-xl border border-border/60">
-                  <span className="font-mono text-xs select-all text-sky-400 font-bold truncate flex-1">
-                    {setupSecret}
-                  </span>
+            <form onSubmit={handleChangePasswordSubmit} className="space-y-5">
+              {/* Current Password */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Current Password *</Label>
+                <div className="relative">
+                  <Input
+                    type={showCurrentPass ? "text" : "password"}
+                    required
+                    placeholder="Enter current password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="pr-10 text-xs bg-background/80 h-10"
+                  />
                   <button
                     type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(setupSecret);
-                      toast.success("Secret key copied to clipboard");
-                    }}
-                    className="p-1 hover:text-foreground text-muted-foreground"
-                    title="Copy secret"
+                    onClick={() => setShowCurrentPass(!showCurrentPass)}
+                    className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
+                    title={showCurrentPass ? "Hide password" : "Show password"}
                   >
-                    <Copy className="h-3.5 w-3.5" />
+                    {showCurrentPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
 
-              {/* Verification input */}
-              <form onSubmit={handleVerify2FASetup} className="space-y-3 pt-2 border-t border-border/60">
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">2. Enter 6-Digit Code from App *</Label>
+              {/* New Password */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">New Password *</Label>
+                <div className="relative">
                   <Input
-                    type="text"
+                    type={showNewPass ? "text" : "password"}
                     required
-                    autoFocus
-                    placeholder="e.g. 123456"
-                    maxLength={6}
-                    value={setupOTP}
-                    onChange={(e) => setSetupOTP(e.target.value.replace(/[^0-9]/g, ""))}
-                    className="text-center font-mono text-lg tracking-widest bg-background h-10"
+                    placeholder="Enter strong new password (min. 8 characters)"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="pr-10 text-xs bg-background/80 h-10"
                   />
-                </div>
-
-                <div className="flex gap-2 pt-2">
-                  <Button
+                  <button
                     type="button"
-                    variant="outline"
-                    onClick={() => setShow2FASetupModal(false)}
-                    className="flex-1 text-xs"
+                    onClick={() => setShowNewPass(!showNewPass)}
+                    className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
+                    title={showNewPass ? "Hide password" : "Show password"}
                   >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={setupVerifying || setupOTP.length !== 6}
-                    className="flex-1 text-xs font-bold bg-sky-500 hover:bg-sky-600 text-white"
+                    {showNewPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+
+                {/* Password Strength Checklist */}
+                {newPassword.length > 0 && (
+                  <div className="grid grid-cols-2 gap-1.5 pt-2 text-[11px] p-3 rounded-xl bg-muted/20 border border-border/50">
+                    <span className={`flex items-center gap-1 ${newPassword.length >= 8 ? "text-emerald-400 font-semibold" : "text-muted-foreground"}`}>
+                      <Check className="h-3 w-3" /> Min 8 characters
+                    </span>
+                    <span className={`flex items-center gap-1 ${/[A-Z]/.test(newPassword) ? "text-emerald-400 font-semibold" : "text-muted-foreground"}`}>
+                      <Check className="h-3 w-3" /> Uppercase letter
+                    </span>
+                    <span className={`flex items-center gap-1 ${/[a-z]/.test(newPassword) ? "text-emerald-400 font-semibold" : "text-muted-foreground"}`}>
+                      <Check className="h-3 w-3" /> Lowercase letter
+                    </span>
+                    <span className={`flex items-center gap-1 ${/[0-9]/.test(newPassword) ? "text-emerald-400 font-semibold" : "text-muted-foreground"}`}>
+                      <Check className="h-3 w-3" /> Number (0-9)
+                    </span>
+                    <span className={`flex items-center gap-1 ${/[^A-Za-z0-9]/.test(newPassword) ? "text-emerald-400 font-semibold" : "text-muted-foreground"} col-span-2`}>
+                      <Check className="h-3 w-3" /> Special character (@$!%*?)
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Confirm New Password */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Confirm New Password *</Label>
+                <div className="relative">
+                  <Input
+                    type={showConfirmPass ? "text" : "password"}
+                    required
+                    placeholder="Re-type new password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="pr-10 text-xs bg-background/80 h-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPass(!showConfirmPass)}
+                    className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
+                    title={showConfirmPass ? "Hide password" : "Show password"}
                   >
-                    {setupVerifying ? "Verifying..." : "Verify & Activate"}
-                  </Button>
+                    {showConfirmPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: BACKUP RECOVERY CODES DISPLAY */}
-      {activeBackupCodes && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-card border border-emerald-500/40 rounded-2xl w-full max-w-lg shadow-2xl p-6 space-y-5 animate-fade-in-up">
-            <div className="flex items-center gap-3 pb-3 border-b border-border">
-              <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
-                <ShieldCheck className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className="font-bold text-base text-foreground">Save Your Backup Recovery Codes</h3>
-                <p className="text-xs text-muted-foreground">Each single-use code can be used to log in once if you lose your phone.</p>
-              </div>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
-              <strong>Important:</strong> These codes are displayed only once. Store them in a secure password manager or offline vault.
-            </div>
-
-            {/* 8 Codes Grid */}
-            <div className="grid grid-cols-2 gap-2.5 p-4 rounded-xl bg-slate-950/80 border border-slate-800">
-              {activeBackupCodes.map((code, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-700/60 text-xs font-mono"
-                >
-                  <span className="text-muted-foreground font-bold">{idx + 1}.</span>
-                  <span className="font-black text-sky-400 select-all tracking-wider">{code}</span>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border">
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    navigator.clipboard.writeText(activeBackupCodes.join("\n"));
-                    toast.success("All 8 backup codes copied to clipboard!");
-                  }}
-                  className="gap-1.5 text-xs font-semibold"
-                >
-                  <Copy className="h-3.5 w-3.5" /> Copy All
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => downloadBackupCodes(activeBackupCodes)}
-                  className="gap-1.5 text-xs font-semibold"
-                >
-                  <Download className="h-3.5 w-3.5" /> Download (.txt)
-                </Button>
+                {confirmPassword.length > 0 && newPassword !== confirmPassword && (
+                  <p className="text-[11px] text-rose-400 font-medium pt-0.5">Passwords do not match.</p>
+                )}
+                {confirmPassword.length > 0 && newPassword === confirmPassword && (
+                  <p className="text-[11px] text-emerald-400 flex items-center gap-1 font-medium pt-0.5">
+                    <Check className="h-3 w-3" /> Passwords match!
+                  </p>
+                )}
               </div>
 
               <Button
-                size="sm"
-                onClick={() => setActiveBackupCodes(null)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                type="submit"
+                disabled={changePassLoading || !newPassword || newPassword !== confirmPassword}
+                className="w-full gap-2 font-bold text-xs h-11 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-600/25 transition-all mt-2"
               >
-                I Have Saved My Codes
+                {changePassLoading ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                <span>{changePassLoading ? "Saving to Database..." : "Update Password in Database"}</span>
               </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: DISABLE 2FA CONFIRMATION */}
-      {showDisable2FAModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-card border border-rose-500/40 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4 animate-fade-in-up">
-            <div className="flex items-center gap-3 pb-3 border-b border-border">
-              <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400">
-                <AlertTriangle className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="font-bold text-base text-foreground">Disable Two-Factor Authentication?</h3>
-                <p className="text-xs text-muted-foreground">This reduces the security level of the administrative panel.</p>
-              </div>
-            </div>
-
-            <form onSubmit={handleDisable2FA} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Confirm with Administrator Password *</Label>
-                <Input
-                  type="password"
-                  required
-                  autoFocus
-                  placeholder="Enter your current password"
-                  value={disablePasswordInput}
-                  onChange={(e) => setDisablePasswordInput(e.target.value)}
-                  className="text-xs bg-background h-10"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-border">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setShowDisable2FAModal(false);
-                    setDisablePasswordInput("");
-                  }}
-                  className="text-xs"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="destructive"
-                  size="sm"
-                  disabled={disableLoading || !disablePasswordInput.trim()}
-                  className="text-xs font-bold"
-                >
-                  {disableLoading ? "Disabling..." : "Confirm & Disable 2FA"}
-                </Button>
-              </div>
             </form>
           </div>
         </div>
       )}
-
 
       {/* MODAL 1: VIEW FULL SERVICE BOOKING DETAILS */}
       {viewingBookingDetails && (
