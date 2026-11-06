@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
+import SEOHead from "../components/SEOHead";
 import {
   Dialog,
   DialogContent,
@@ -228,6 +229,11 @@ const Services = () => {
 
   return (
     <div className="min-h-screen pt-24 pb-16">
+      <SEOHead
+        title="Computer Repair & IT Technical Services | GadgetZone"
+        description="Book professional laptop repairs, chip-level motherboard service, CCTV installation, network setup, and data recovery across India."
+        canonical="/services"
+      />
       <div className="container mx-auto px-4">
         <motion.div {...fadeUp} className="text-center mb-16">
           <h1 className="font-display text-4xl md:text-5xl font-bold mb-4">Our Services</h1>

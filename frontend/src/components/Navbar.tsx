@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ShoppingCart, Search, Menu, X, Monitor, User, Heart, Package, ShieldCheck, Wrench } from "lucide-react";
+import { ShoppingCart, Search, Menu, X, Monitor, User, Heart, Package, ShieldCheck, Wrench, ArrowRight } from "lucide-react";
+import { matchesSmartQuery } from "../lib/smartSearch";
 import { toast } from "sonner";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
@@ -297,9 +298,15 @@ const Navbar = () => {
                 <div className="relative flex items-center">
                   <input
                     type="text"
-                    placeholder="Search products, brands, or categories... (Press Esc to exit)"
+                    placeholder='Smart Search: e.g. "HP 8GB RAM 500GB", "i5 Laptop"... (Press Enter to view catalog)'
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && searchQuery.trim()) {
+                        navigate(`/products?q=${encodeURIComponent(searchQuery.trim())}`);
+                        closeSearch();
+                      }
+                    }}
                     className="w-full pl-4 pr-10 py-2.5 rounded-lg bg-secondary text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm"
                     autoFocus
                   />
@@ -316,16 +323,18 @@ const Navbar = () => {
                   <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border shadow-xl rounded-xl overflow-hidden max-h-[60vh] overflow-y-auto z-50">
                     {(() => {
                       const results = products.filter(p => 
-                        p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                        p.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        p.brand.toLowerCase().includes(searchQuery.toLowerCase())
+
+
+                        matchesSmartQuery(p, searchQuery)
                       );
                       
                       if (results.length === 0) {
                         return <div className="p-6 text-center text-sm font-medium text-muted-foreground bg-muted/20">No products found matching "{searchQuery}"</div>;
                       }
                       
-                      return results.map(p => (
+                      return (
+                        <>
+                          {results.slice(0, 8).map(p => (
                         <Link 
                            key={p.id} 
                            to={`/product/${p.id}`} 
@@ -348,7 +357,20 @@ const Navbar = () => {
                           </div>
                           <span className="text-sm font-black text-primary">₹{p.price.toLocaleString()}</span>
                         </Link>
-                      ));
+                          ))}
+                          <Link
+                            to={`/products?q=${encodeURIComponent(searchQuery.trim())}`}
+                            onClick={() => {
+                              setSearchOpen(false);
+                              setSearchQuery("");
+                            }}
+                            className="flex items-center justify-between p-3 bg-primary/10 hover:bg-primary/20 text-primary font-bold text-xs uppercase tracking-wider transition-colors border-t border-border"
+                          >
+                            <span>View all {results.length} matching results in catalog</span>
+                            <ArrowRight className="h-4 w-4" />
+                          </Link>
+                        </>
+                      );
                     })()}
                   </div>
                 )}

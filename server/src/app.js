@@ -13,6 +13,7 @@ import orderRoutes from "./routes/orders.js";
 import componentRoutes from "./routes/components.js";
 import serviceRoutes from "./routes/services.js";
 import contactRoutes from "./routes/contact.js";
+import seoRoutes from "./routes/seo.js";
 
 const app = express();
 
@@ -28,10 +29,18 @@ app.use(
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
+// Mount SEO routes at root level for search engines (/sitemap.xml & /robots.txt)
+app.use("/", seoRoutes);
+
 // Ensure MongoDB is connected for API requests
 app.use(async (req, res, next) => {
-  // Always permit health checks even if DB is still establishing connection
-  if (req.path === "/" || req.path === "/api/health") {
+  // Always permit health checks and SEO crawlers even if DB is still establishing connection
+  if (
+    req.path === "/" ||
+    req.path === "/api/health" ||
+    req.path === "/robots.txt" ||
+    req.path === "/sitemap.xml"
+  ) {
     return next();
   }
 

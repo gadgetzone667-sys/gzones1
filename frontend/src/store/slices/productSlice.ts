@@ -24,6 +24,15 @@ export function toProduct(doc: Record<string, unknown>): Product {
     featured: (doc.featured as boolean) ?? false,
     specs: doc.specs as Record<string, string> | undefined,
     warranty: (doc.warranty as string) || "1 Year Onsite Hardware Service",
+    ram: (doc.ram as string) || "",
+    storage: (doc.storage as string) || "",
+    processor: (doc.processor as string) || "",
+    graphics: (doc.graphics as string) || "",
+    model: (doc.model as string) || "",
+    slug: (doc.slug as string) || "",
+    seoTitle: (doc.seoTitle as string) || "",
+    seoDescription: (doc.seoDescription as string) || "",
+    metaKeywords: Array.isArray(doc.metaKeywords) ? (doc.metaKeywords as string[]) : [],
   };
 }
 

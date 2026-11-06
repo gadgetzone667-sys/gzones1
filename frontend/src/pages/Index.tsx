@@ -18,6 +18,7 @@ import { useProducts } from "../context/ProductContext";
 import { useReviews } from "../context/ReviewContext";
 import ProductCard from "../components/ProductCard";
 import type { Product, Review } from "../data/products";
+import SEOHead from "../components/SEOHead";
 import entryVideo from "../assets/Title card.mp4";
 
 const fadeUp = {
@@ -161,6 +162,22 @@ const Index = () => {
 
   return (
     <div className="min-h-screen min-h-dvh pt-20 pb-12 space-y-8 w-full px-3 sm:px-6 lg:px-10 xl:px-14">
+      <SEOHead
+        title="GadgetZone | High Performance Gaming PCs, Laptops & Components India"
+        description="Shop custom gaming PCs, Intel Core & AMD Ryzen laptops, graphics cards, DDR4/DDR5 RAM, and high-speed NVMe storage at India's trusted tech destination."
+        canonical="/"
+        schemaData={{
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          name: "GadgetZone",
+          url: "https://gzones.in",
+          potentialAction: {
+            "@type": "SearchAction",
+            target: "https://gzones.in/products?q={search_term_string}",
+            "query-input": "required name=search_term_string",
+          },
+        }}
+      />
       {/* SECTION 1: BUILD YOUR DREAM MACHINE (HERO) */}
       <section className="relative overflow-hidden section-highlight p-5 sm:p-8 md:p-10 lg:p-12 border-sky-500/30 w-full min-w-0 shadow-[0_20px_50px_rgba(14,165,233,0.15)]">
         <div className="absolute -right-20 -top-20 w-72 sm:w-96 h-72 sm:h-96 bg-sky-500/15 rounded-full blur-3xl pointer-events-none animate-pulse-ring" />

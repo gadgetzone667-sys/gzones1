@@ -17,7 +17,10 @@ import {
   Mail,
   ArrowLeft,
   CheckCircle2,
+  ShieldCheck,
+  Smartphone,
 } from "lucide-react";
+import SEOHead from "../components/SEOHead";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 
@@ -64,6 +67,11 @@ const Login = () => {
   const [isForgotLoading, setIsForgotLoading] = useState(false);
   const [forgotResult, setForgotResult] = useState<{ sent: boolean; message: string } | null>(null);
 
+  // Two-Factor Authentication (TOTP 2FA) Flow
+  const [is2FARequired, setIs2FARequired] = useState(false);
+  const [temp2FAToken, setTemp2FAToken] = useState("");
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+
   // Failed Attempts & Adaptive Captcha
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [showCaptcha, setShowCaptcha] = useState(false);
@@ -75,7 +83,7 @@ const Login = () => {
   const pwdCriteria = useMemo(() => checkPasswordStrength(password), [password]);
   const pwdScore = Object.values(pwdCriteria).filter(Boolean).length;
 
-  const { login, register, loginWithGoogle, forgotPassword, skipLogin } = useAuth();
+  const { login, verify2FALogin, register, loginWithGoogle, forgotPassword, skipLogin } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectPath = searchParams.get("redirect") || "/";
@@ -207,9 +215,27 @@ const Login = () => {
           setError(typeof result === "string" ? result : "Registration failed.");
         }
       } else {
-        const success = await login(cleanEmail, cleanPassword);
+        const loginResult = await login(cleanEmail, cleanPassword);
 
-        if (success) {
+        if (typeof loginResult === "object" && loginResult.twoFactorRequired) {
+          setIs2FARequired(true);
+          setTemp2FAToken(loginResult.tempToken);
+          setTwoFactorCode("");
+          setIsSubmitting(false);
+          return;
+        }
+
+        const success = loginResult === true;
+
+        if (typeof loginResult === "object" && loginResult.twoFactorRequired) {
+          setIs2FARequired(true);
+          setTemp2FAToken(loginResult.tempToken);
+          setTwoFactorCode("");
+          setIsSubmitting(false);
+          return;
+        }
+
+        if (loginResult === true) {
           setFailedAttempts(0);
           setShowCaptcha(false);
           toast.success("Logged in successfully.");
@@ -235,6 +261,66 @@ const Login = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+
+  const handle2FASubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    const code = twoFactorCode.trim();
+    if (!code) {
+      setError("Please enter the 6-digit OTP code or backup recovery code.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const res = await verify2FALogin(temp2FAToken, code);
+      if (res.success) {
+        setFailedAttempts(0);
+        setShowCaptcha(false);
+        toast.success("Two-Factor Authentication verified. Welcome back!");
+        navigate(redirectPath);
+      } else {
+        setError(res.message || "Invalid two-factor authentication code. Please try again.");
+      }
+    } catch {
+      setError("Authentication service temporarily unavailable. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handle2FASubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    const code = twoFactorCode.trim();
+    if (!code) {
+      setError("Please enter the 6-digit OTP code or backup recovery code.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const res = await verify2FALogin(temp2FAToken, code);
+      if (res.success) {
+        setFailedAttempts(0);
+        setShowCaptcha(false);
+        toast.success("Two-Factor Authentication verified. Welcome back!");
+        navigate(redirectPath);
+      } else {
+        setError(res.message || "Invalid two-factor authentication code. Please try again.");
+      }
+    } catch {
+      setError("Authentication service temporarily unavailable. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
   };
 
   const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
@@ -269,6 +355,12 @@ const Login = () => {
 
   return (
     <div className="relative min-h-screen min-h-dvh w-full flex items-center justify-center p-3 sm:p-6 bg-gradient-to-br from-background via-muted/30 to-background">
+      <SEOHead
+        title="Sign In & Account Security | GadgetZone"
+        description="Sign in to your GadgetZone customer account or management gateway securely."
+        canonical="/login"
+        noIndex={true}
+      />
       <div className="w-full max-w-4xl bg-slate-900/95 backdrop-blur-xl border border-sky-500/30 rounded-3xl overflow-hidden shadow-2xl relative shadow-sky-500/10">
         <Button
           variant="ghost"
@@ -335,7 +427,83 @@ const Login = () => {
                         Return to Sign In
                       </Button>
                     </div>
-                  ) : (
+                  ) : is2FARequired ? (
+                /* TWO-FACTOR AUTHENTICATION VIEW */
+                <div className="space-y-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIs2FARequired(false);
+                      setTwoFactorCode("");
+                      setError("");
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs text-sky-400 hover:text-sky-300 font-semibold transition-colors"
+                  >
+                    <ArrowLeft className="h-4 w-4" /> Back to Sign In
+                  </button>
+
+                  <div className="space-y-1">
+                    <div className="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-purple-500/10 border border-purple-500/30 text-purple-400 mb-2">
+                      <Smartphone className="h-5 w-5" />
+                    </div>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                      Two-Factor Authentication
+                    </h1>
+                    <p className="text-xs sm:text-sm text-muted-foreground">
+                      This account is protected by 2FA. Enter the 6-digit verification code from Google Authenticator, or an 8-character backup recovery code.
+                    </p>
+                  </div>
+
+                  {error && (
+                    <div className="flex items-start gap-2.5 text-xs sm:text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-xl px-4 py-3 animate-shake">
+                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                      <div className="flex-1">{error}</div>
+                    </div>
+                  )}
+
+                  <form onSubmit={handle2FASubmit} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-foreground">
+                        Google Authenticator OTP / Backup Code
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-muted-foreground">
+                          <ShieldCheck className="h-4 w-4 text-purple-400" />
+                        </div>
+                        <Input
+                          type="text"
+                          required
+                          autoFocus
+                          placeholder="e.g. 123456 or a1b2c3d4"
+                          value={twoFactorCode}
+                          onChange={(e) => setTwoFactorCode(e.target.value)}
+                          maxLength={16}
+                          className="pl-10 h-11 bg-muted/30 border border-input/60 rounded-xl text-center text-lg font-mono tracking-widest placeholder:text-muted-foreground/40 placeholder:text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full h-11 rounded-xl text-sm font-semibold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-500/20 transition-all gap-2"
+                    >
+                      {isSubmitting ? (
+                        <div className="flex items-center gap-2">
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                          <span>Verifying Code...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <ShieldCheck className="h-4 w-4" />
+                          <span>Verify & Sign In</span>
+                          <ArrowRight className="h-4 w-4" />
+                        </>
+                      )}
+                    </Button>
+                  </form>
+                </div>
+              ) : (
                     <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
                       <div className="space-y-1.5">
                         <label className="text-xs font-semibold text-foreground">
@@ -367,7 +535,83 @@ const Login = () => {
                             <RefreshCw className="h-4 w-4 animate-spin" />
                             <span>Sending Reset Link...</span>
                           </div>
-                        ) : (
+                        ) : is2FARequired ? (
+                /* TWO-FACTOR AUTHENTICATION VIEW */
+                <div className="space-y-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIs2FARequired(false);
+                      setTwoFactorCode("");
+                      setError("");
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs text-sky-400 hover:text-sky-300 font-semibold transition-colors"
+                  >
+                    <ArrowLeft className="h-4 w-4" /> Back to Sign In
+                  </button>
+
+                  <div className="space-y-1">
+                    <div className="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-purple-500/10 border border-purple-500/30 text-purple-400 mb-2">
+                      <Smartphone className="h-5 w-5" />
+                    </div>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                      Two-Factor Authentication
+                    </h1>
+                    <p className="text-xs sm:text-sm text-muted-foreground">
+                      This account is protected by 2FA. Enter the 6-digit verification code from Google Authenticator, or an 8-character backup recovery code.
+                    </p>
+                  </div>
+
+                  {error && (
+                    <div className="flex items-start gap-2.5 text-xs sm:text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-xl px-4 py-3 animate-shake">
+                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                      <div className="flex-1">{error}</div>
+                    </div>
+                  )}
+
+                  <form onSubmit={handle2FASubmit} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-foreground">
+                        Google Authenticator OTP / Backup Code
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-muted-foreground">
+                          <ShieldCheck className="h-4 w-4 text-purple-400" />
+                        </div>
+                        <Input
+                          type="text"
+                          required
+                          autoFocus
+                          placeholder="e.g. 123456 or a1b2c3d4"
+                          value={twoFactorCode}
+                          onChange={(e) => setTwoFactorCode(e.target.value)}
+                          maxLength={16}
+                          className="pl-10 h-11 bg-muted/30 border border-input/60 rounded-xl text-center text-lg font-mono tracking-widest placeholder:text-muted-foreground/40 placeholder:text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full h-11 rounded-xl text-sm font-semibold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-500/20 transition-all gap-2"
+                    >
+                      {isSubmitting ? (
+                        <div className="flex items-center gap-2">
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                          <span>Verifying Code...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <ShieldCheck className="h-4 w-4" />
+                          <span>Verify & Sign In</span>
+                          <ArrowRight className="h-4 w-4" />
+                        </>
+                      )}
+                    </Button>
+                  </form>
+                </div>
+              ) : (
                           <>
                             <span>Send Password Reset Link</span>
                             <ArrowRight className="h-4 w-4" />
@@ -376,6 +620,82 @@ const Login = () => {
                       </Button>
                     </form>
                   )}
+                </div>
+              ) : is2FARequired ? (
+                /* TWO-FACTOR AUTHENTICATION VIEW */
+                <div className="space-y-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIs2FARequired(false);
+                      setTwoFactorCode("");
+                      setError("");
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs text-sky-400 hover:text-sky-300 font-semibold transition-colors"
+                  >
+                    <ArrowLeft className="h-4 w-4" /> Back to Sign In
+                  </button>
+
+                  <div className="space-y-1">
+                    <div className="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-purple-500/10 border border-purple-500/30 text-purple-400 mb-2">
+                      <Smartphone className="h-5 w-5" />
+                    </div>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                      Two-Factor Authentication
+                    </h1>
+                    <p className="text-xs sm:text-sm text-muted-foreground">
+                      This account is protected by 2FA. Enter the 6-digit verification code from Google Authenticator, or an 8-character backup recovery code.
+                    </p>
+                  </div>
+
+                  {error && (
+                    <div className="flex items-start gap-2.5 text-xs sm:text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-xl px-4 py-3 animate-shake">
+                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                      <div className="flex-1">{error}</div>
+                    </div>
+                  )}
+
+                  <form onSubmit={handle2FASubmit} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-foreground">
+                        Google Authenticator OTP / Backup Code
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-muted-foreground">
+                          <ShieldCheck className="h-4 w-4 text-purple-400" />
+                        </div>
+                        <Input
+                          type="text"
+                          required
+                          autoFocus
+                          placeholder="e.g. 123456 or a1b2c3d4"
+                          value={twoFactorCode}
+                          onChange={(e) => setTwoFactorCode(e.target.value)}
+                          maxLength={16}
+                          className="pl-10 h-11 bg-muted/30 border border-input/60 rounded-xl text-center text-lg font-mono tracking-widest placeholder:text-muted-foreground/40 placeholder:text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full h-11 rounded-xl text-sm font-semibold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-500/20 transition-all gap-2"
+                    >
+                      {isSubmitting ? (
+                        <div className="flex items-center gap-2">
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                          <span>Verifying Code...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <ShieldCheck className="h-4 w-4" />
+                          <span>Verify & Sign In</span>
+                          <ArrowRight className="h-4 w-4" />
+                        </>
+                      )}
+                    </Button>
+                  </form>
                 </div>
               ) : (
                 /* STANDARD SIGN IN / REGISTER VIEW */
@@ -657,7 +977,83 @@ const Login = () => {
                             <span>Create Account</span>
                             <ArrowRight className="h-4 w-4" />
                           </>
-                        ) : (
+                        ) : is2FARequired ? (
+                /* TWO-FACTOR AUTHENTICATION VIEW */
+                <div className="space-y-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIs2FARequired(false);
+                      setTwoFactorCode("");
+                      setError("");
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs text-sky-400 hover:text-sky-300 font-semibold transition-colors"
+                  >
+                    <ArrowLeft className="h-4 w-4" /> Back to Sign In
+                  </button>
+
+                  <div className="space-y-1">
+                    <div className="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-purple-500/10 border border-purple-500/30 text-purple-400 mb-2">
+                      <Smartphone className="h-5 w-5" />
+                    </div>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                      Two-Factor Authentication
+                    </h1>
+                    <p className="text-xs sm:text-sm text-muted-foreground">
+                      This account is protected by 2FA. Enter the 6-digit verification code from Google Authenticator, or an 8-character backup recovery code.
+                    </p>
+                  </div>
+
+                  {error && (
+                    <div className="flex items-start gap-2.5 text-xs sm:text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-xl px-4 py-3 animate-shake">
+                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                      <div className="flex-1">{error}</div>
+                    </div>
+                  )}
+
+                  <form onSubmit={handle2FASubmit} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-foreground">
+                        Google Authenticator OTP / Backup Code
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-muted-foreground">
+                          <ShieldCheck className="h-4 w-4 text-purple-400" />
+                        </div>
+                        <Input
+                          type="text"
+                          required
+                          autoFocus
+                          placeholder="e.g. 123456 or a1b2c3d4"
+                          value={twoFactorCode}
+                          onChange={(e) => setTwoFactorCode(e.target.value)}
+                          maxLength={16}
+                          className="pl-10 h-11 bg-muted/30 border border-input/60 rounded-xl text-center text-lg font-mono tracking-widest placeholder:text-muted-foreground/40 placeholder:text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full h-11 rounded-xl text-sm font-semibold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-500/20 transition-all gap-2"
+                    >
+                      {isSubmitting ? (
+                        <div className="flex items-center gap-2">
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                          <span>Verifying Code...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <ShieldCheck className="h-4 w-4" />
+                          <span>Verify & Sign In</span>
+                          <ArrowRight className="h-4 w-4" />
+                        </>
+                      )}
+                    </Button>
+                  </form>
+                </div>
+              ) : (
                           <>
                             <span>Sign In</span>
                             <ArrowRight className="h-4 w-4" />

@@ -30,6 +30,7 @@ import {
   Package,
 } from "lucide-react";
 import { toast } from "sonner";
+import SEOHead from "../components/SEOHead";
 import { motion, AnimatePresence } from "framer-motion";
 
 
@@ -199,6 +200,38 @@ const ProductDetails = () => {
 
   return (
     <div className="min-h-screen min-h-dvh pt-24 pb-20 bg-background text-foreground">
+      {product && (
+        <SEOHead
+          title={product.seoTitle || `${product.name} | Best Price & Specs - GadgetZone`}
+          description={
+            product.seoDescription ||
+            (product.description && product.description.length > 20
+              ? product.description.slice(0, 160)
+              : `Buy ${product.name} with original warranty, high performance specs and express delivery at GadgetZone.`)
+          }
+          canonical={`/product/${product.slug || product.id}`}
+          ogImage={product.image || (Array.isArray(product.images) ? product.images[0] : undefined)}
+          schemaData={{
+            "@context": "https://schema.org/",
+            "@type": "Product",
+            name: product.name,
+            image: Array.isArray(product.images) && product.images.length > 0 ? product.images : [product.image].filter(Boolean),
+            description: product.seoDescription || product.description || product.name,
+            brand: {
+              "@type": "Brand",
+              name: product.brand || "GadgetZone",
+            },
+            offers: {
+              "@type": "Offer",
+              url: typeof window !== "undefined" ? window.location.href : "",
+              priceCurrency: "INR",
+              price: product.price,
+              availability: product.stock === 0 ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+              itemCondition: "https://schema.org/NewCondition",
+            },
+          }}
+        />
+      )}
       <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
         {/* Breadcrumb Navigation */}
         <div className="flex items-center justify-between mb-6 pb-2 border-b border-border/50 text-xs text-muted-foreground">

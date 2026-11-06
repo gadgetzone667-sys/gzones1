@@ -1,0 +1,17 @@
+# robots.txt for GadgetZone
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /login
+Disallow: /reset-password
+Disallow: /cart
+Disallow: /checkout
+Disallow: /orders
+Disallow: /my-services
+Allow: /api/products
+Allow: /api/services
+Allow: /sitemap.xml
+
+Sitemap: https://gzones.in/sitemap.xml
+

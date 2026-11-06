@@ -15,6 +15,16 @@ export interface Product {
   featured?: boolean;
   specs?: Record<string, string>;
   warranty?: string;
+  ram?: string;
+  storage?: string;
+  processor?: string;
+  graphics?: string;
+  model?: string;
+  slug?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  metaKeywords?: string[];
+  searchTokens?: string[];
 }
 
 export interface Service {

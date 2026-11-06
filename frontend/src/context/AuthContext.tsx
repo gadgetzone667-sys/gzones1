@@ -7,6 +7,7 @@ export interface User {
   isAdmin: boolean;
   name?: string;
   avatar?: string;
+  twoFactorEnabled?: boolean;
 }
 
 interface AuthContextType {
@@ -15,7 +16,8 @@ interface AuthContextType {
   isLoggedIn: boolean;
   hasSkippedLogin: boolean;
   isLoading: boolean;
-  login: (email: string, pass: string) => Promise<boolean>;
+  login: (email: string, pass: string) => Promise<boolean | { twoFactorRequired: true; tempToken: string }>;
+  verify2FALogin: (tempToken: string, code: string) => Promise<{ success: boolean; message?: string }>;
   register: (email: string, pass: string) => Promise<boolean | string>;
   loginWithGoogle: (credential: string) => Promise<boolean>;
   forgotPassword: (email: string) => Promise<{ success: boolean; message: string }>;
@@ -66,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               isAdmin: Boolean(data.user.isAdmin),
               name: data.user.name,
               avatar: data.user.avatar,
+              twoFactorEnabled: Boolean(data.user.twoFactorEnabled),
             };
             setUser(verifiedUser);
             setToken(activeToken);
@@ -95,7 +98,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const getToken = () => token || localStorage.getItem("GadgetZone_token");
 
-  const login = async (email: string, pass: string): Promise<boolean> => {
+  const login = async (
+    email: string,
+    pass: string
+  ): Promise<boolean | { twoFactorRequired: true; tempToken: string }> => {
     const cleanEmail = (email || "").trim().toLowerCase();
     const cleanPassword = (pass || "").trim();
 
@@ -110,6 +116,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (res.ok) {
         const data = await res.json();
+        if (data?.twoFactorRequired && data?.tempToken) {
+          return { twoFactorRequired: true, tempToken: data.tempToken };
+        }
         if (data?.token && data?.user) {
           localStorage.setItem("GadgetZone_token", data.token);
           const verifiedUser: User = {
@@ -118,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             isAdmin: Boolean(data.user.isAdmin),
             name: data.user.name,
             avatar: data.user.avatar,
+            twoFactorEnabled: Boolean(data.user.twoFactorEnabled),
           };
           setUser(verifiedUser);
           setToken(data.token);
@@ -128,6 +138,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.warn("Login request failed:", err);
       return false;
+    }
+  };
+
+  const verify2FALogin = async (
+    tempToken: string,
+    code: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    try {
+      const res = await fetch("/api/auth/login-2fa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tempToken, token: code.trim() }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (res.ok && data?.token && data?.user) {
+        localStorage.setItem("GadgetZone_token", data.token);
+        const verifiedUser: User = {
+          id: String(data.user.id || data.user._id),
+          email: data.user.email,
+          isAdmin: Boolean(data.user.isAdmin),
+          name: data.user.name,
+          avatar: data.user.avatar,
+          twoFactorEnabled: Boolean(data.user.twoFactorEnabled),
+        };
+        setUser(verifiedUser);
+        setToken(data.token);
+        return { success: true };
+      }
+
+      return {
+        success: false,
+        message: data?.error || data?.message || "Invalid two-factor code or code expired.",
+      };
+    } catch (err: any) {
+      return { success: false, message: err?.message || "2FA verification request failed." };
     }
   };
 
@@ -283,6 +330,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hasSkippedLogin,
         isLoading,
         login,
+        verify2FALogin,
         register,
         loginWithGoogle,
         forgotPassword,

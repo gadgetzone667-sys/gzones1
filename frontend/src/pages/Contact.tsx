@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Mail, Phone, MapPin, Clock, Send, Instagram, Youtube } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import SEOHead from "../components/SEOHead";
 
 const WhatsappIcon = ({ className = "h-4 w-4" }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -61,6 +62,11 @@ const Contact = () => {
 
   return (
     <div className="min-h-screen pt-24 pb-16">
+      <SEOHead
+        title="Contact GadgetZone | Customer Support & Technical Service Desk"
+        description="Get in touch with GadgetZone for computer sales inquiries, repair quotes, doorstep technician visits, and hardware consultations in India."
+        canonical="/contact"
+      />
       <div className="container mx-auto px-4">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-16">
           <h1 className="font-display text-4xl md:text-5xl font-bold mb-4">Get in Touch</h1>

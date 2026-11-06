@@ -3,6 +3,7 @@ import { useCart, type BuildPart } from "../context/CartContext";
 import { motion } from "framer-motion";
 import { ShoppingCart, AlertTriangle, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import SEOHead from "../components/SEOHead";
 
 interface PCComponent {
   id: string;
@@ -103,6 +104,11 @@ const BuildPC = () => {
 
   return (
     <div className="min-h-screen min-h-dvh pt-24 pb-16">
+      <SEOHead
+        title="Custom PC Builder & Rig Configurator | GadgetZone"
+        description="Build your dream gaming or workstation PC with real-time component compatibility, Intel and AMD processor support, and instant cart checkout."
+        canonical="/build-pc"
+      />
       <div className="container mx-auto px-4 sm:px-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-8 sm:mb-12">
           <h1 className="font-display text-3xl sm:text-4xl md:text-5xl font-extrabold mb-3">Build Your PC</h1>
